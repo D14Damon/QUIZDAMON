@@ -11,39 +11,41 @@ service cloud.firestore {
 
     // 2. Quizzes collection (quizzes, questions, custom theme & styling)
     match /quizzes/{quizId} {
-      // Anyone can read a quiz so respondents and guests can take it
+      // Anyone can read a quiz so respondents and students can take it
       allow read: if true;
-      // Only authenticated creators can create quizzes
-      allow create: if request.auth != null && request.resource.data.creatorId == request.auth.uid;
-      // Creators can update their quizzes; respondents can increment responseCount
-      allow update: if (request.auth != null && resource.data.creatorId == request.auth.uid)
+      // Authenticated creators can create quizzes
+      allow create: if request.auth != null;
+      // Creators can update their quizzes; respondents can increment responseCount & updatedAt
+      allow update: if (request.auth != null && (resource.data.creatorId == request.auth.uid || !('creatorId' in resource.data)))
                     || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['responseCount', 'updatedAt']);
       // Only the creator can delete their quiz
-      allow delete: if request.auth != null && resource.data.creatorId == request.auth.uid;
+      allow delete: if request.auth != null && (resource.data.creatorId == request.auth.uid || !('creatorId' in resource.data));
 
-      // Subcollection responses (if any)
+      // Subcollection responses
       match /responses/{responseId} {
         allow create: if true;
-        allow read, delete: if request.auth != null;
+        allow read: if true;
+        allow delete: if request.auth != null;
         allow update: if false;
       }
     }
 
     // 3. Top-level responses collection (respondent answers, scores, timestamps)
     match /responses/{responseId} {
-      // Anyone can submit quiz/form responses
+      // Anyone can submit quiz responses
       allow create: if true;
-      // Logged in creators can view responses in dashboard analytics
-      allow read: if request.auth != null;
-      // Logged in creators can delete response entries
+      // Anyone can read responses for quiz dashboard analytics
+      allow read: if true;
+      // Authenticated creators can delete response entries
       allow delete: if request.auth != null;
       allow update: if false;
     }
 
-    // 4. Submission verification lock (enforces 1 submission per email)
+    // 4. Submission verification lock (enforces 1 submission per user/email)
     match /quiz_submissions/{subId} {
       allow read, create: if true;
       allow update, delete: if request.auth != null;
     }
   }
 }
+

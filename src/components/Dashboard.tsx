@@ -17,12 +17,10 @@ import {
   Clock,
   ArrowRight,
   AlertTriangle,
-  Link2,
   Search
 } from 'lucide-react';
 import { STARTER_TEMPLATES } from '../data/presets';
 import { QuizLimitModal } from './QuizLimitModal';
-import { CustomSlugModal } from './CustomSlugModal';
 
 interface DashboardProps {
   quizzes: Quiz[];
@@ -48,7 +46,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showTemplatesModal, setShowTemplatesModal] = useState(false);
   const [showLimitModal, setShowLimitModal] = useState(false);
-  const [customSlugQuiz, setCustomSlugQuiz] = useState<Quiz | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [templateCategory, setTemplateCategory] = useState<string>('All');
   const [templateQuery, setTemplateQuery] = useState<string>('');
@@ -100,12 +97,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
     navigator.clipboard.writeText(url);
     setCopiedId(quiz.id);
     setTimeout(() => setCopiedId(null), 2500);
-  };
-
-  const handleSlugUpdated = (newSlug: string) => {
-    if (customSlugQuiz) {
-      customSlugQuiz.customSlug = newSlug;
-    }
   };
 
   return (
@@ -320,42 +311,33 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
                   {/* Card Bottom: Share & Action Buttons */}
                   <div className="pt-4 mt-3 border-t border-zinc-100 space-y-2.5">
-                    {/* Shareable Link Box with Edit Link button */}
-                    <div className="flex items-center gap-1 p-1 bg-zinc-50 border border-zinc-200 rounded-xl">
+                    {/* Shareable Link Box */}
+                    <div className="flex items-center gap-1.5 p-1 bg-zinc-50 border border-zinc-200 rounded-xl">
                       <input
                         type="text"
                         readOnly
                         value={shareUrl}
-                        className="bg-transparent text-[11px] font-mono text-zinc-600 px-2 flex-1 truncate focus:outline-none"
+                        className="bg-transparent text-[11px] font-mono text-zinc-600 px-2.5 flex-1 truncate focus:outline-none select-all"
+                        title="Direct system shareable link"
                       />
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setCustomSlugQuiz(quiz);
-                        }}
-                        className="px-2 py-1 text-[11px] font-semibold rounded-lg border border-zinc-200 bg-white hover:bg-zinc-100 text-zinc-700 flex items-center gap-1 transition-colors cursor-pointer shrink-0"
-                        title="Edit custom quiz link (e.g. damonquiz-title)"
-                      >
-                        <Link2 className="w-3 h-3 text-zinc-500" />
-                        <span>Edit Link</span>
-                      </button>
-                      <button
                         onClick={(e) => copyQuizLink(quiz, e)}
-                        className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg flex items-center gap-1 transition-all cursor-pointer shrink-0 ${
+                        className={`px-3 py-1.5 text-[11px] font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
                           isCopied
                             ? 'bg-emerald-600 text-white'
                             : 'bg-zinc-900 hover:bg-zinc-800 text-white'
                         }`}
+                        title="Copy share link"
                       >
                         {isCopied ? (
                           <>
-                            <Check className="w-3 h-3" />
-                            <span>Copied</span>
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Copied!</span>
                           </>
                         ) : (
                           <>
-                            <Copy className="w-3 h-3" />
-                            <span>Copy</span>
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>Copy Link</span>
                           </>
                         )}
                       </button>
@@ -565,16 +547,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
           if (el) el.scrollIntoView({ behavior: 'smooth' });
         }}
       />
-
-      {/* Edit Custom Quiz Link Slug Modal */}
-      {customSlugQuiz && (
-        <CustomSlugModal
-          isOpen={!!customSlugQuiz}
-          onClose={() => setCustomSlugQuiz(null)}
-          quiz={customSlugQuiz}
-          onSlugUpdated={handleSlugUpdated}
-        />
-      )}
     </div>
   );
 };

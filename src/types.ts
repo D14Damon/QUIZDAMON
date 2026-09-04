@@ -10,6 +10,18 @@ export type BorderRadiusType = 'none' | 'rounded' | 'pill';
 
 export type ButtonStyleType = 'solid' | 'soft' | 'neo' | 'pill';
 
+export type AnimationPreset = 
+  | 'fade-slide'       // Smooth vertical slide & subtle fade
+  | 'spring-pop'       // Playful elastic bounce & scale pop
+  | 'flip-card'        // 3D perspective flip entry
+  | 'cinema-zoom'      // Elegant cinematic depth zoom-in
+  | 'slide-horizontal' // Left-to-right modern presentation flow
+  | 'stagger-reveal'   // Cascade stagger elements
+  | 'glitch-tech'      // Quick crisp digital snap transition
+  | 'gentle-float'     // Soft organic floating ease
+  | 'elastic-snap'     // Dynamic responsive snapping
+  | 'paper-unfold';     // Warm editorial physical unfolding sensation
+
 export interface QuizTheme {
   id: string;
   name: string;
@@ -25,6 +37,7 @@ export interface QuizTheme {
   cardStyle: CardStyleType;
   borderRadius: BorderRadiusType;
   buttonStyle: ButtonStyleType;
+  animationPreset?: AnimationPreset;
   isDark?: boolean;
 }
 
@@ -55,7 +68,10 @@ export interface Question {
   minRating?: number; // e.g. 1
   maxRating?: number; // e.g. 5 or 10
   ratingLabels?: { low?: string; high?: string };
+  timeLimitSeconds?: number | null; // Per-question timer limit in seconds (e.g. 30s)
 }
+
+export type TimerMode = 'none' | 'whole-quiz' | 'per-question';
 
 export interface QuizSettings {
   collectName: boolean;
@@ -69,7 +85,10 @@ export interface QuizSettings {
   limitOneSubmission?: boolean; // Limit each user 1 submit each
   restrictToAllowedEmails?: boolean;
   allowedEmails?: string[]; // Specific emails authorized to take this quiz
-  timeLimitMinutes: number | null; // null = no limit
+  timerMode?: TimerMode; // 'none' | 'whole-quiz' | 'per-question'
+  timeLimitMinutes: number | null; // whole quiz time limit in minutes (null = no limit)
+  questionTimeLimitSeconds?: number | null; // default per-question time limit in seconds (e.g. 30s)
+  deadline?: string | null; // ISO string deadline timestamp (e.g. '2026-09-05T17:00') or null if no deadline
   shuffleQuestions: boolean;
   showScoreImmediately: boolean;
   allowReview: boolean;
@@ -107,6 +126,7 @@ export interface QuizResponseAnswer {
   isCorrect?: boolean;
   pointsEarned?: number;
   maxPoints?: number;
+  isTimedOut?: boolean; // True if question was skipped or expired due to timer
 }
 
 export interface UserProfile {
@@ -132,5 +152,9 @@ export interface QuizResponse {
   percentage: number;
   isPassed: boolean;
   timeSpentSeconds: number;
+  timedOut?: boolean; // True if submission was triggered by timer expiration
+  unansweredCount?: number; // Number of questions left uncompleted
+  correctCount?: number;
+  wrongCount?: number;
   submittedAt: any;
 }

@@ -45,10 +45,13 @@ import {
   Mail,
   Link2,
   Globe,
-  AlertTriangle
+  AlertTriangle,
+  CalendarClock
 } from 'lucide-react';
 import { QuizTaker } from '../QuizTaker/QuizTaker';
 import { QuizLimitModal } from '../QuizLimitModal';
+import { TimerConfigModal } from './TimerConfigModal';
+import { DeadlineConfigModal } from './DeadlineConfigModal';
 import { formatQuizSlug, generateDefaultQuizSlug } from '../../lib/quizHelpers';
 
 interface QuizBuilderProps {
@@ -74,6 +77,8 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [showLimitModal, setShowLimitModal] = useState(false);
+  const [showTimerModal, setShowTimerModal] = useState(false);
+  const [showDeadlineModal, setShowDeadlineModal] = useState(false);
   const [showLivePreviewModal, setShowLivePreviewModal] = useState(false);
   const [previewDevice, setPreviewDevice] = useState<'desktop' | 'mobile'>('desktop');
   const [newSectionInput, setNewSectionInput] = useState('');
@@ -87,6 +92,16 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
     setQuiz((prev) => ({
       ...prev,
       settings: { ...prev.settings, [field]: value },
+    }));
+  };
+
+  const handleUpdateAllQuestionsTimer = (seconds: number | null) => {
+    setQuiz((prev) => ({
+      ...prev,
+      questions: prev.questions.map((q) => ({
+        ...q,
+        timeLimitSeconds: seconds,
+      })),
     }));
   };
 
@@ -240,8 +255,27 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
     }
   };
 
-  const copyShareLink = () => {
-    const url = getShareableQuizUrl(quiz);
+  const copyShareLink = async () => {
+    let currentQuizId = quiz.id;
+    if (!currentQuizId || currentQuizId.startsWith('q_') || currentQuizId.startsWith('sample_')) {
+      try {
+        setIsSaving(true);
+        const savedId = await saveQuiz({
+          ...quiz,
+          creatorId: userId,
+          creatorEmail: userEmail,
+          creatorName: creatorName || quiz.creatorName,
+        });
+        currentQuizId = savedId;
+        setQuiz((prev) => ({ ...prev, id: savedId }));
+        setSaveSuccess(true);
+      } catch (err: any) {
+        console.error('Auto-save error before sharing:', err);
+      } finally {
+        setIsSaving(false);
+      }
+    }
+    const url = getShareableQuizUrl(currentQuizId || quiz.id);
     navigator.clipboard.writeText(url);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
@@ -321,6 +355,60 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
 
           {/* Right Action Buttons */}
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowTimerModal(true)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 border text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+                quiz.settings.timerMode === 'whole-quiz' || (!quiz.settings.timerMode && quiz.settings.timeLimitMinutes)
+                  ? 'bg-amber-50 hover:bg-amber-100 border-amber-300 text-amber-900 shadow-2xs'
+                  : quiz.settings.timerMode === 'per-question'
+                  ? 'bg-indigo-50 hover:bg-indigo-100 border-indigo-300 text-indigo-900 shadow-2xs'
+                  : 'bg-white hover:bg-zinc-100 border-zinc-200 text-zinc-700'
+              }`}
+              title="Configure countdown timer (whole quiz or per question)"
+            >
+              <Clock className={`w-3.5 h-3.5 ${
+                quiz.settings.timerMode === 'whole-quiz' || (!quiz.settings.timerMode && quiz.settings.timeLimitMinutes)
+                  ? 'text-amber-600'
+                  : quiz.settings.timerMode === 'per-question'
+                  ? 'text-indigo-600'
+                  : 'text-zinc-500'
+              }`} />
+              <span>
+                {quiz.settings.timerMode === 'whole-quiz' || (!quiz.settings.timerMode && quiz.settings.timeLimitMinutes)
+                  ? `Timer: ${quiz.settings.timeLimitMinutes || 15}m`
+                  : quiz.settings.timerMode === 'per-question'
+                  ? `Timer: ${quiz.settings.questionTimeLimitSeconds || 30}s/q`
+                  : 'Timer'}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setShowDeadlineModal(true)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 border text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+                quiz.settings.deadline
+                  ? new Date(quiz.settings.deadline).getTime() < Date.now()
+                    ? 'bg-rose-50 hover:bg-rose-100 border-rose-300 text-rose-900 shadow-2xs'
+                    : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-300 text-emerald-900 shadow-2xs'
+                  : 'bg-white hover:bg-zinc-100 border-zinc-200 text-zinc-700'
+              }`}
+              title="Configure quiz submission deadline cutoff"
+            >
+              <CalendarClock className={`w-3.5 h-3.5 ${
+                quiz.settings.deadline
+                  ? new Date(quiz.settings.deadline).getTime() < Date.now()
+                    ? 'text-rose-600'
+                    : 'text-emerald-600'
+                  : 'text-zinc-500'
+              }`} />
+              <span>
+                {quiz.settings.deadline
+                  ? new Date(quiz.settings.deadline).getTime() < Date.now()
+                    ? 'Deadline: Expired'
+                    : 'Deadline Set'
+                  : 'Deadline'}
+              </span>
+            </button>
+
             <button
               onClick={() => setShowLivePreviewModal(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-800 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
@@ -617,6 +705,21 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
                           onChange={(e) => updateQuestion(question.id, { points: Number(e.target.value) || 0 })}
                           className="w-16 border border-zinc-200 rounded-lg px-2 py-1 text-xs font-mono"
                         />
+                      </div>
+
+                      <div className="flex items-center gap-1.5 pl-3 border-l border-zinc-200" title="Optional countdown time in seconds for this question">
+                        <Clock className="w-3.5 h-3.5 text-zinc-400" />
+                        <span className="text-zinc-500">Timer:</span>
+                        <input
+                          type="number"
+                          min={5}
+                          max={600}
+                          placeholder={quiz.settings.timerMode === 'per-question' ? `${quiz.settings.questionTimeLimitSeconds || 30}s` : 'Off'}
+                          value={question.timeLimitSeconds ?? ''}
+                          onChange={(e) => updateQuestion(question.id, { timeLimitSeconds: e.target.value ? Number(e.target.value) : null })}
+                          className="w-16 border border-zinc-200 rounded-lg px-2 py-1 text-xs font-mono"
+                        />
+                        <span className="text-[11px] text-zinc-400">s</span>
                       </div>
                     </div>
 
@@ -1003,96 +1106,54 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
               </div>
             </div>
 
-            {/* Custom Quiz Link & Vanity Slug Card */}
+            {/* System Generated Quiz Share Link Card */}
             <div className="p-6 bg-white border border-zinc-200 rounded-2xl shadow-xs space-y-4">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-zinc-100 text-zinc-900 flex items-center justify-center">
-                    <Link2 className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold text-zinc-900 font-modern">Custom Quiz Link & Vanity URL</h3>
-                    <p className="text-xs text-zinc-500 mt-0.5">
-                      Personalize your quiz link (e.g. <code className="font-mono text-zinc-800 bg-zinc-100 px-1 py-0.5 rounded">damonquiz-title</code>)
-                    </p>
-                  </div>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-zinc-900 text-white flex items-center justify-center">
+                  <Share2 className="w-4 h-4" />
                 </div>
-                {quiz.title && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const autoSlug = generateDefaultQuizSlug(quiz.title);
-                      updateQuizField('customSlug', autoSlug);
-                    }}
-                    className="flex items-center gap-1 text-xs font-semibold text-zinc-700 hover:text-black bg-zinc-100 hover:bg-zinc-200 px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                    <span>Auto-generate from Title</span>
-                  </button>
-                )}
+                <div>
+                  <h3 className="text-base font-bold text-zinc-900 font-modern">Quiz Share Link</h3>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    Official direct link provided by the system for respondents and students to take this quiz.
+                  </p>
+                </div>
               </div>
 
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs font-semibold text-zinc-700 mb-1">
-                    Custom Link Slug / Alias
-                  </label>
-                  <div className="flex items-center border border-zinc-300 focus-within:border-zinc-900 rounded-xl overflow-hidden bg-white shadow-2xs">
-                    <span className="px-3 py-2.5 bg-zinc-100 border-r border-zinc-200 text-xs font-mono text-zinc-500 shrink-0">
-                      ?quiz=
-                    </span>
-                    <input
-                      type="text"
-                      value={quiz.customSlug || ''}
-                      onChange={(e) => {
-                        const clean = formatQuizSlug(e.target.value);
-                        updateQuizField('customSlug', clean);
-                      }}
-                      placeholder="e.g. damonquiz-science-exam"
-                      className="w-full text-xs font-mono text-zinc-900 px-3 py-2.5 focus:outline-none"
-                    />
-                  </div>
+              {/* System Provided URL Box */}
+              <div className="p-4 bg-zinc-50 border border-zinc-200 rounded-xl space-y-2.5">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="font-semibold text-zinc-500 uppercase tracking-wider">
+                    System Shareable Link
+                  </span>
+                  <button
+                    type="button"
+                    onClick={copyShareLink}
+                    className="font-semibold text-zinc-800 hover:text-black flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-zinc-100 border border-zinc-200 rounded-lg shadow-2xs cursor-pointer transition-colors"
+                  >
+                    {copiedLink ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span className="text-emerald-700">Link Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5 text-zinc-600" />
+                        <span>Copy Link</span>
+                      </>
+                    )}
+                  </button>
                 </div>
 
-                {/* Live Preview of full URL */}
-                <div className="p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl space-y-1.5">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="font-semibold text-zinc-500 uppercase tracking-wider">
-                      Shareable URL Preview
-                    </span>
-                    <button
-                      type="button"
-                      onClick={copyShareLink}
-                      className="font-semibold text-zinc-800 hover:text-black flex items-center gap-1 cursor-pointer"
-                    >
-                      {copiedLink ? (
-                        <>
-                          <Check className="w-3 h-3 text-emerald-600" />
-                          <span className="text-emerald-600">Copied!</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3 h-3 text-zinc-500" />
-                          <span>Copy Link</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                  <p className="text-xs font-mono text-zinc-700 break-all select-all">
+                <div className="p-2.5 bg-white border border-zinc-200 rounded-lg shadow-2xs">
+                  <p className="text-xs font-mono text-zinc-800 break-all select-all font-semibold">
                     {getShareableQuizUrl(quiz)}
                   </p>
                 </div>
 
-                {/* Domain explanation */}
-                <div className="p-3.5 bg-sky-50/70 border border-sky-200/80 rounded-xl text-xs text-sky-950 space-y-1">
-                  <div className="flex items-center gap-1.5 font-bold text-sky-900">
-                    <Globe className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                    <span>Can I use a domain like damonquiz(title).com?</span>
-                  </div>
-                  <p className="text-[11px] text-sky-800 leading-relaxed">
-                    Custom domain names ending with <strong>.com</strong> require purchasing and registering the domain via a web registrar (like Cloudflare or Namecheap). However, with your custom slug above, respondents can access this quiz instantly with your custom alias. If you configure a custom domain (such as <code>damonquiz.com</code>), your quiz will automatically resolve to <code>https://damonquiz.com/?quiz={quiz.customSlug || quiz.id}</code>!
-                  </p>
-                </div>
+                <p className="text-[11px] text-zinc-500 leading-relaxed">
+                  Anyone who clicks or opens this link can immediately participate and submit answers. Responses are saved automatically to your dashboard.
+                </p>
               </div>
             </div>
 
@@ -1394,33 +1455,283 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
             </div>
 
             <div className="p-6 bg-white border border-zinc-200 rounded-2xl shadow-xs space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-zinc-900 font-modern">Quiz Countdown Timer</h3>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    Set a strict countdown for the whole quiz or each individual question.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowTimerModal(true)}
+                  className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Clock className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Configure Timer Modal</span>
+                </button>
+              </div>
+
+              {/* Timer Mode Selection */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div
+                  onClick={() => {
+                    updateSettingsField('timerMode', 'none');
+                    updateSettingsField('timeLimitMinutes', null);
+                  }}
+                  className={`p-3.5 border-2 rounded-xl cursor-pointer transition-all ${
+                    (quiz.settings.timerMode === 'none' || (!quiz.settings.timerMode && !quiz.settings.timeLimitMinutes))
+                      ? 'border-zinc-900 bg-zinc-50'
+                      : 'border-zinc-200 hover:border-zinc-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-zinc-900">Untimed</span>
+                    <span className="text-[10px] text-zinc-400">No limits</span>
+                  </div>
+                  <p className="text-[11px] text-zinc-500 mt-1">Users answer at their own pace.</p>
+                </div>
+
+                <div
+                  onClick={() => {
+                    updateSettingsField('timerMode', 'whole-quiz');
+                    if (!quiz.settings.timeLimitMinutes) updateSettingsField('timeLimitMinutes', 15);
+                  }}
+                  className={`p-3.5 border-2 rounded-xl cursor-pointer transition-all ${
+                    quiz.settings.timerMode === 'whole-quiz' || (!quiz.settings.timerMode && quiz.settings.timeLimitMinutes)
+                      ? 'border-amber-500 bg-amber-50/50'
+                      : 'border-zinc-200 hover:border-zinc-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-zinc-900">Whole Quiz</span>
+                    <span className="text-[10px] text-amber-600 font-bold font-mono">
+                      {quiz.settings.timeLimitMinutes || 15}m
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-zinc-500 mt-1">Single timer for entire quiz.</p>
+                </div>
+
+                <div
+                  onClick={() => {
+                    updateSettingsField('timerMode', 'per-question');
+                    if (!quiz.settings.questionTimeLimitSeconds) updateSettingsField('questionTimeLimitSeconds', 30);
+                  }}
+                  className={`p-3.5 border-2 rounded-xl cursor-pointer transition-all ${
+                    quiz.settings.timerMode === 'per-question'
+                      ? 'border-indigo-600 bg-indigo-50/50'
+                      : 'border-zinc-200 hover:border-zinc-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-zinc-900">Per-Question</span>
+                    <span className="text-[10px] text-indigo-600 font-bold font-mono">
+                      {quiz.settings.questionTimeLimitSeconds || 30}s/q
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-zinc-500 mt-1">Individual timer per question.</p>
+                </div>
+              </div>
+
+              {/* Conditional Inputs */}
+              {(quiz.settings.timerMode === 'whole-quiz' || (!quiz.settings.timerMode && quiz.settings.timeLimitMinutes)) && (
+                <div className="p-4 bg-amber-50/60 border border-amber-200 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-zinc-800">
+                      Total Quiz Duration (Minutes)
+                    </label>
+                    <span className="text-xs font-mono font-bold text-amber-700">
+                      {quiz.settings.timeLimitMinutes || 15} mins
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[5, 10, 15, 20, 30, 45, 60].map((mins) => (
+                      <button
+                        key={mins}
+                        type="button"
+                        onClick={() => updateSettingsField('timeLimitMinutes', mins)}
+                        className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+                          quiz.settings.timeLimitMinutes === mins
+                            ? 'bg-amber-500 text-white shadow-2xs'
+                            : 'bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-100'
+                        }`}
+                      >
+                        {mins}m
+                      </button>
+                    ))}
+                    <div className="flex items-center gap-1 bg-white border border-zinc-200 rounded-lg px-2 py-1">
+                      <input
+                        type="number"
+                        min={1}
+                        max={300}
+                        value={quiz.settings.timeLimitMinutes || ''}
+                        onChange={(e) => updateSettingsField('timeLimitMinutes', e.target.value ? Math.max(1, Number(e.target.value)) : null)}
+                        placeholder="Custom"
+                        className="w-14 text-xs font-mono font-bold text-zinc-900 focus:outline-none"
+                      />
+                      <span className="text-[11px] text-zinc-400">mins</span>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-amber-900 leading-relaxed">
+                    When the timer runs out, the quiz automatically locks and submits. Questions unanswered at timeout will be marked as <strong>wrong (0 pts)</strong> on your dashboard.
+                  </p>
+                </div>
+              )}
+
+              {quiz.settings.timerMode === 'per-question' && (
+                <div className="p-4 bg-indigo-50/60 border border-indigo-200 rounded-xl space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-zinc-800">
+                      Default Question Timer (Seconds)
+                    </label>
+                    <span className="text-xs font-mono font-bold text-indigo-700">
+                      {quiz.settings.questionTimeLimitSeconds || 30} secs
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[10, 15, 20, 30, 45, 60, 90].map((secs) => (
+                      <button
+                        key={secs}
+                        type="button"
+                        onClick={() => updateSettingsField('questionTimeLimitSeconds', secs)}
+                        className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+                          quiz.settings.questionTimeLimitSeconds === secs
+                            ? 'bg-indigo-600 text-white shadow-2xs'
+                            : 'bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-100'
+                        }`}
+                      >
+                        {secs}s
+                      </button>
+                    ))}
+                    <div className="flex items-center gap-1 bg-white border border-zinc-200 rounded-lg px-2 py-1">
+                      <input
+                        type="number"
+                        min={5}
+                        max={600}
+                        value={quiz.settings.questionTimeLimitSeconds || ''}
+                        onChange={(e) => updateSettingsField('questionTimeLimitSeconds', e.target.value ? Math.max(5, Number(e.target.value)) : 30)}
+                        placeholder="Custom"
+                        className="w-14 text-xs font-mono font-bold text-zinc-900 focus:outline-none"
+                      />
+                      <span className="text-[11px] text-zinc-400">secs</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between pt-1">
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateAllQuestionsTimer(quiz.settings.questionTimeLimitSeconds || 30)}
+                      className="text-xs font-semibold px-3 py-1.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-800 rounded-lg transition-colors cursor-pointer"
+                    >
+                      Apply {quiz.settings.questionTimeLimitSeconds || 30}s to all {quiz.questions.length} questions
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-indigo-900 leading-relaxed">
+                    When question timer runs out, it locks. If unanswered, it counts as <strong>wrong (0 pts)</strong> and automatically advances to the next question.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Quiz Submission Deadline Card */}
+            <div className="p-6 bg-white border border-zinc-200 rounded-2xl shadow-xs space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-zinc-900 font-modern">Quiz Submission Deadline</h3>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    Set a strict cutoff timestamp. When the deadline passes, respondents are blocked from answering.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowDeadlineModal(true)}
+                  className={`px-3 py-1.5 border rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                    quiz.settings.deadline
+                      ? 'bg-rose-50 hover:bg-rose-100 text-rose-800 border-rose-200'
+                      : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-800 border-zinc-200'
+                  }`}
+                >
+                  <CalendarClock className={`w-3.5 h-3.5 ${quiz.settings.deadline ? 'text-rose-600' : 'text-zinc-500'}`} />
+                  <span>{quiz.settings.deadline ? 'Edit Deadline' : 'Set Deadline'}</span>
+                </button>
+              </div>
+
+              {quiz.settings.deadline ? (
+                (() => {
+                  const deadlineDate = new Date(quiz.settings.deadline);
+                  const isExpired = deadlineDate.getTime() < Date.now();
+                  const formattedTime = deadlineDate.toLocaleString(undefined, {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                  });
+
+                  return (
+                    <div className={`p-4 rounded-xl border text-xs space-y-3 ${
+                      isExpired
+                        ? 'bg-rose-50/70 border-rose-200 text-rose-900'
+                        : 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
+                    }`}>
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <span className="font-bold text-xs uppercase tracking-wider block opacity-70">
+                            {isExpired ? 'Quiz Status: Closed' : 'Quiz Status: Active until deadline'}
+                          </span>
+                          <span className="text-sm font-bold block mt-0.5">
+                            {formattedTime}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setShowDeadlineModal(true)}
+                            className="px-2.5 py-1 bg-white border border-current rounded-lg text-xs font-semibold hover:bg-white/80 cursor-pointer"
+                          >
+                            Change
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateSettingsField('deadline', null)}
+                            className="px-2.5 py-1 bg-white border border-rose-300 text-rose-700 rounded-lg text-xs font-semibold hover:bg-rose-50 cursor-pointer"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-[11px] opacity-80 leading-relaxed">
+                        {isExpired
+                          ? 'This deadline has already passed. Anyone attempting to take this quiz will see a "Deadline Expired" notice and will not be able to submit answers.'
+                          : 'Respondents can take this quiz until the specified timestamp. Once that time arrives, answers can no longer be submitted.'}
+                      </p>
+                    </div>
+                  );
+                })()
+              ) : (
+                <div className="p-4 bg-zinc-50 border border-zinc-200 rounded-xl text-xs text-zinc-500 flex items-center justify-between">
+                  <span>No deadline is set. The quiz is open indefinitely for respondents.</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowDeadlineModal(true)}
+                    className="text-xs font-bold text-zinc-900 hover:underline cursor-pointer"
+                  >
+                    Add a deadline
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 bg-white border border-zinc-200 rounded-2xl shadow-xs space-y-6">
               <div>
                 <h3 className="text-base font-bold text-zinc-900 font-modern">Scoring & Completion Experience</h3>
                 <p className="text-xs text-zinc-500 mt-0.5">
-                  Customize the timer, passing grade, and completion message.
+                  Customize the passing grade, immediate score display, and completion message.
                 </p>
               </div>
 
               <div className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-zinc-700 mb-1">
-                      Time Limit (Minutes)
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      placeholder="Leave blank for no limit"
-                      value={quiz.settings.timeLimitMinutes || ''}
-                      onChange={(e) => {
-                        const val = e.target.value ? Number(e.target.value) : null;
-                        updateSettingsField('timeLimitMinutes', val);
-                      }}
-                      className="w-full text-xs border border-zinc-200 rounded-xl p-2.5 font-mono"
-                    />
-                    <span className="text-[11px] text-zinc-400 mt-1 block">A live countdown clock will be displayed</span>
-                  </div>
-
                   <div>
                     <label className="block text-xs font-semibold text-zinc-700 mb-1">
                       Passing Percentage Threshold (%)
@@ -1551,6 +1862,33 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
         currentCount={15}
         maxCount={15}
         onManageQuizzes={onBack}
+      />
+
+      {/* Timer Configuration Modal */}
+      <TimerConfigModal
+        isOpen={showTimerModal}
+        onClose={() => setShowTimerModal(false)}
+        quiz={quiz}
+        onUpdateSettings={({ timerMode, timeLimitMinutes, questionTimeLimitSeconds }) => {
+          setQuiz((prev) => ({
+            ...prev,
+            settings: {
+              ...prev.settings,
+              timerMode,
+              timeLimitMinutes,
+              questionTimeLimitSeconds,
+            },
+          }));
+        }}
+        onUpdateAllQuestionsTimer={handleUpdateAllQuestionsTimer}
+      />
+
+      {/* Deadline Configuration Modal */}
+      <DeadlineConfigModal
+        isOpen={showDeadlineModal}
+        onClose={() => setShowDeadlineModal(false)}
+        quiz={quiz}
+        onUpdateDeadline={(deadline) => updateSettingsField('deadline', deadline)}
       />
     </div>
   );

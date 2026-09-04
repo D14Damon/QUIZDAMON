@@ -1,8 +1,11 @@
 import { Quiz, QuizResponse, Question } from '../types';
 
-export function calculateQuizResults(quiz: Quiz, answers: Record<string, any>) {
+export function calculateQuizResults(quiz: Quiz, answers: Record<string, any>, isTimedOutSubmission?: boolean) {
   let totalScore = 0;
   let maxScore = 0;
+  let correctCount = 0;
+  let wrongCount = 0;
+  let unansweredCount = 0;
 
   const evaluatedAnswers = quiz.questions.map((q) => {
     const val = answers[q.id];
@@ -11,15 +14,44 @@ export function calculateQuizResults(quiz: Quiz, answers: Record<string, any>) {
     const maxPoints = q.points || 0;
     maxScore += maxPoints;
 
+    const hasAnswer = val !== undefined && val !== null && val !== '' && !(Array.isArray(val) && val.length === 0);
+
+    if (!hasAnswer) {
+      // Question was not answered (due to timeout or skipped)
+      // Strictly wrong and 0 points earned
+      isCorrect = false;
+      pointsEarned = 0;
+      unansweredCount++;
+      wrongCount++;
+
+      return {
+        questionId: q.id,
+        questionTitle: q.title,
+        questionType: q.type,
+        value: null,
+        isCorrect: false,
+        pointsEarned: 0,
+        maxPoints,
+        isTimedOut: true,
+      };
+    }
+
     if (q.type === 'multiple-choice' || q.type === 'true-false') {
       const correctOpt = q.options?.find((o) => o.isCorrect);
       if (correctOpt) {
         if (val === correctOpt.id || val === correctOpt.text) {
           isCorrect = true;
           pointsEarned = maxPoints;
+          correctCount++;
         } else {
           isCorrect = false;
+          wrongCount++;
         }
+      } else {
+        // If no correct option was set by creator, full points for participating
+        isCorrect = true;
+        pointsEarned = maxPoints;
+        correctCount++;
       }
     } else if (q.type === 'multiple-select') {
       const correctOptIds = (q.options || []).filter((o) => o.isCorrect).map((o) => o.id);
@@ -30,15 +62,21 @@ export function calculateQuizResults(quiz: Quiz, answers: Record<string, any>) {
         if (allCorrectChosen && noWrongChosen) {
           isCorrect = true;
           pointsEarned = maxPoints;
+          correctCount++;
         } else {
           isCorrect = false;
+          wrongCount++;
         }
+      } else {
+        isCorrect = true;
+        pointsEarned = maxPoints;
+        correctCount++;
       }
     } else if (q.type === 'rating-stars' || q.type === 'opinion-scale' || q.type === 'short-text' || q.type === 'long-text') {
-      // subjective/open questions get full points if answered (or 0 if points wasn't graded)
-      if (val !== undefined && val !== null && val !== '') {
-        pointsEarned = maxPoints;
-      }
+      // subjective / open questions with answer provided get points
+      pointsEarned = maxPoints;
+      isCorrect = true;
+      correctCount++;
     }
 
     totalScore += pointsEarned;
@@ -48,9 +86,10 @@ export function calculateQuizResults(quiz: Quiz, answers: Record<string, any>) {
       questionTitle: q.title,
       questionType: q.type,
       value: val,
-      isCorrect,
+      isCorrect: isCorrect ?? false,
       pointsEarned,
       maxPoints,
+      isTimedOut: false,
     };
   });
 
@@ -62,6 +101,10 @@ export function calculateQuizResults(quiz: Quiz, answers: Record<string, any>) {
     maxScore,
     percentage,
     isPassed,
+    correctCount,
+    wrongCount,
+    unansweredCount,
+    timedOut: !!isTimedOutSubmission || unansweredCount > 0,
     evaluatedAnswers,
   };
 }
@@ -83,14 +126,14 @@ export function generateDefaultQuizSlug(title: string): string {
 }
 
 export function getShareableQuizUrl(quizOrId: string | { id: string; customSlug?: string }): string {
-  const slugOrId = typeof quizOrId === 'string'
+  const quizId = typeof quizOrId === 'string'
     ? quizOrId
-    : (quizOrId.customSlug?.trim() || quizOrId.id);
+    : quizOrId.id;
 
-  if (typeof window === 'undefined') return `?quiz=${slugOrId}`;
+  if (typeof window === 'undefined') return `?quiz=${quizId}`;
   const origin = window.location.origin;
   const pathname = window.location.pathname;
-  return `${origin}${pathname}?quiz=${slugOrId}`;
+  return `${origin}${pathname}?quiz=${quizId}`;
 }
 
 /**
@@ -156,7 +199,7 @@ function buildSpreadsheetData(quiz: Quiz, responses: QuizResponse[]) {
         const opt = q.options?.find((o) => o.id === ans);
         formattedAns = opt ? opt.text : String(ans);
       } else {
-        formattedAns = '-';
+        formattedAns = '[Timed Out / Unanswered (0 pts)]';
       }
 
       baseCols.push(formattedAns || '-');

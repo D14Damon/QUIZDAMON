@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Quiz, Question } from '../../types';
 import { calculateQuizResults } from '../../lib/quizHelpers';
 import { submitQuizResponse, checkEmailAlreadySubmitted } from '../../lib/quizDbService';
+import { getAnimationConfig } from '../../lib/animationVariants';
 import confetti from 'canvas-confetti';
 import { 
   ArrowRight, 
@@ -19,7 +21,9 @@ import {
   Send,
   EyeOff,
   Lock,
-  Loader2
+  Loader2,
+  CalendarClock,
+  CalendarX
 } from 'lucide-react';
 
 interface QuizTakerProps {
@@ -51,9 +55,80 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [results, setResults] = useState<ReturnType<typeof calculateQuizResults> | null>(null);
   const [timeSpentSeconds, setTimeSpentSeconds] = useState(0);
+
+  // Timer Configuration & State
+  const timerMode = quiz.settings.timerMode || (quiz.settings.timeLimitMinutes ? 'whole-quiz' : 'none');
   const [timeRemainingSeconds, setTimeRemainingSeconds] = useState<number | null>(
-    quiz.settings.timeLimitMinutes ? quiz.settings.timeLimitMinutes * 60 : null
+    (timerMode === 'whole-quiz' && quiz.settings.timeLimitMinutes)
+      ? quiz.settings.timeLimitMinutes * 60
+      : null
   );
+  const [questionTimeRemaining, setQuestionTimeRemaining] = useState<number | null>(null);
+  const [questionMaxTime, setQuestionMaxTime] = useState<number>(30);
+  const [isTimeUp, setIsTimeUp] = useState(false);
+  const [isQuestionLocked, setIsQuestionLocked] = useState(false);
+  const [timedOutQuestionNotice, setTimedOutQuestionNotice] = useState<string | null>(null);
+
+  // Synchronous state refs for timer callbacks
+  const answersRef = useRef(answers);
+  answersRef.current = answers;
+
+  const currentStepRef = useRef(currentStep);
+  currentStepRef.current = currentStep;
+
+  const isSubmittedRef = useRef(isSubmitted);
+  isSubmittedRef.current = isSubmitted;
+
+  const isSubmittingRef = useRef(isSubmitting);
+  isSubmittingRef.current = isSubmitting;
+
+  const isTimeUpRef = useRef(isTimeUp);
+  isTimeUpRef.current = isTimeUp;
+
+  // Deadline calculation and state
+  const deadlineDate = quiz.settings.deadline ? new Date(quiz.settings.deadline) : null;
+  const isDeadlineValid = !!deadlineDate && !isNaN(deadlineDate.getTime());
+  const [isDeadlineExpired, setIsDeadlineExpired] = useState<boolean>(() => {
+    if (!isDeadlineValid || !deadlineDate) return false;
+    return deadlineDate.getTime() <= Date.now();
+  });
+
+  const formatRemainingTime = (date: Date | null) => {
+    if (!date) return '';
+    const diff = date.getTime() - Date.now();
+    if (diff <= 0) return 'Expired';
+    const totalHours = Math.floor(diff / (1000 * 60 * 60));
+    const days = Math.floor(totalHours / 24);
+    const hours = totalHours % 24;
+    const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (days > 0) return `${days}d ${hours}h left`;
+    if (hours > 0) return `${hours}h ${mins}m left`;
+    return `${mins}m left`;
+  };
+
+  // Animation preset configuration for the quiz theme
+  const animConfig = getAnimationConfig(quiz.theme.animationPreset);
+
+  // Monitor deadline continuously every second
+  useEffect(() => {
+    if (!isDeadlineValid || !deadlineDate || isSubmitted) return;
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const expired = deadlineDate.getTime() <= now;
+      if (expired) {
+        setIsDeadlineExpired(true);
+        // If the respondent is actively taking the quiz (currentStep > 0), auto submit on deadline
+        if (currentStepRef.current > 0 && !isSubmittedRef.current && !isSubmittingRef.current) {
+          setIsTimeUp(true);
+          handleSubmit(true);
+        }
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isDeadlineValid, deadlineDate, isSubmitted]);
 
   // Check if device already submitted this quiz
   const [existingSubmission, setExistingSubmission] = useState<{
@@ -65,6 +140,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
     maxScore?: number;
     percentage?: number;
     isPassed?: boolean;
+    timedOut?: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -80,6 +156,9 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
   }, [quiz.id, isPreviewMode, quiz.settings.limitOneSubmission]);
 
   const timerRef = useRef<any>(null);
+
+  // Effective layout (per-question timer works best in focused step-by-step layout)
+  const effectiveLayout = timerMode === 'per-question' && quiz.layout === 'single-page' ? 'step-by-step' : quiz.layout;
 
   // Fonts class resolver
   const fontClass = 
@@ -99,24 +178,79 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
     quiz.theme.borderRadius === 'none' ? 'rounded-none' :
     quiz.theme.borderRadius === 'pill' ? 'rounded-3xl' : 'rounded-2xl';
 
-  // Timer countdown
+  // Per-Question timer initialization on step change
   useEffect(() => {
-    if (isSubmitted) return;
+    if (timerMode === 'per-question' && currentStep > 0 && currentStep <= quiz.questions.length && !isSubmitted) {
+      const activeQ = quiz.questions[currentStep - 1];
+      const qLimit = activeQ?.timeLimitSeconds || quiz.settings.questionTimeLimitSeconds || 30;
+      setQuestionTimeRemaining(qLimit);
+      setQuestionMaxTime(qLimit);
+      setIsQuestionLocked(false);
+      setTimedOutQuestionNotice(null);
+    }
+  }, [currentStep, timerMode, isSubmitted, quiz.questions, quiz.settings.questionTimeLimitSeconds]);
+
+  // Main countdown timer effect
+  useEffect(() => {
+    if (isSubmitted || currentStep === 0) return;
+
     timerRef.current = setInterval(() => {
       setTimeSpentSeconds((prev) => prev + 1);
-      setTimeRemainingSeconds((prev) => {
-        if (prev === null) return null;
-        if (prev <= 1) {
-          clearInterval(timerRef.current);
-          handleForceSubmit();
-          return 0;
-        }
-        return prev - 1;
-      });
+
+      // Check deadline cutoff during active quiz taking
+      if (isDeadlineValid && deadlineDate && Date.now() >= deadlineDate.getTime()) {
+        clearInterval(timerRef.current);
+        setIsDeadlineExpired(true);
+        setIsTimeUp(true);
+        handleSubmit(true);
+        return;
+      }
+
+      // Whole Quiz Countdown
+      if (timerMode === 'whole-quiz') {
+        setTimeRemainingSeconds((prev) => {
+          if (prev === null) return null;
+          if (prev <= 1) {
+            clearInterval(timerRef.current);
+            setIsTimeUp(true);
+            handleSubmit(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }
+
+      // Per-Question Countdown
+      if (timerMode === 'per-question') {
+        setQuestionTimeRemaining((prev) => {
+          if (prev === null) return null;
+          if (prev <= 1) {
+            const activeStep = currentStepRef.current;
+            const totalQuestions = quiz.questions.length;
+
+            if (activeStep < totalQuestions) {
+              // Lock current question and advance
+              setIsQuestionLocked(true);
+              setTimedOutQuestionNotice(`Time expired for Question ${activeStep}! Moving to next question...`);
+              setTimeout(() => {
+                setTimedOutQuestionNotice(null);
+                setCurrentStep((curr) => curr + 1);
+              }, 600);
+            } else {
+              // Last question reached timeout -> finalize quiz
+              clearInterval(timerRef.current);
+              setIsTimeUp(true);
+              handleSubmit(true);
+            }
+            return 0;
+          }
+          return prev - 1;
+        });
+      }
     }, 1000);
 
     return () => clearInterval(timerRef.current);
-  }, [isSubmitted]);
+  }, [isSubmitted, currentStep, timerMode]);
 
   const formatCountdown = (secs: number) => {
     const mins = Math.floor(secs / 60);
@@ -153,6 +287,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
   }, [currentStep, quiz.layout, answers, isSubmitted]);
 
   const handleOptionSelect = (qId: string, value: any, isMultipleSelect: boolean) => {
+    if (isTimeUp || isQuestionLocked || isSubmitting) return;
     setValidationError(null);
     if (isMultipleSelect) {
       const currentList: string[] = Array.isArray(answers[qId]) ? answers[qId] : [];
@@ -168,6 +303,13 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
 
   // Step transitions
   const handleStartQuiz = async () => {
+    // Deadline check: reject if expired
+    if (isDeadlineValid && deadlineDate && deadlineDate.getTime() <= Date.now() && !isPreviewMode) {
+      setValidationError('The deadline for this quiz has expired. Submissions are no longer accepted.');
+      setIsDeadlineExpired(true);
+      return;
+    }
+
     if (existingSubmission && quiz.settings.limitOneSubmission !== false) {
       setValidationError('You have already submitted this quiz. Only 1 submission is allowed per person.');
       return;
@@ -218,9 +360,20 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
 
     setValidationError(null);
     setCurrentStep(1);
+
+    if (timerMode === 'whole-quiz' && quiz.settings.timeLimitMinutes) {
+      setTimeRemainingSeconds(quiz.settings.timeLimitMinutes * 60);
+    }
+    if (timerMode === 'per-question' && quiz.questions.length > 0) {
+      const firstLimit = quiz.questions[0]?.timeLimitSeconds || quiz.settings.questionTimeLimitSeconds || 30;
+      setQuestionTimeRemaining(firstLimit);
+      setQuestionMaxTime(firstLimit);
+      setIsQuestionLocked(false);
+    }
   };
 
   const handleNextStep = () => {
+    if (isTimeUp) return;
     const activeQ = quiz.questions[currentStep - 1];
     if (activeQ && activeQ.required) {
       const ans = answers[activeQ.id];
@@ -235,11 +388,12 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
       setCurrentStep(currentStep + 1);
     } else {
       // Final submission
-      handleSubmit();
+      handleSubmit(false);
     }
   };
 
   const handlePrevStep = () => {
+    if (isTimeUp || isQuestionLocked) return;
     if (currentStep > 1) {
       setValidationError(null);
       setCurrentStep(currentStep - 1);
@@ -247,13 +401,15 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
   };
 
   const handleForceSubmit = () => {
-    handleSubmit();
+    handleSubmit(true);
   };
 
-  // Submission handler
-  const handleSubmit = async () => {
-    // Validate required questions (crucial for single-page layout)
-    if (quiz.layout === 'single-page') {
+  // Submission handler (supports normal manual submit or timeout auto-submit)
+  const handleSubmit = async (isTimeoutSubmit = false) => {
+    if (isSubmittedRef.current || isSubmittingRef.current) return;
+
+    // Validate required questions only if this is a manual submission
+    if (!isTimeoutSubmit && effectiveLayout === 'single-page') {
       if (quiz.settings.collectName && quiz.settings.requireName && !respondentName.trim()) {
         setValidationError('Please provide your name.');
         return;
@@ -269,7 +425,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
       for (let i = 0; i < quiz.questions.length; i++) {
         const q = quiz.questions[i];
         if (q.required) {
-          const val = answers[q.id];
+          const val = answersRef.current[q.id];
           if (val === undefined || val === null || val === '' || (Array.isArray(val) && val.length === 0)) {
             setValidationError(`Please answer question ${i + 1}: "${q.title}"`);
             return;
@@ -278,8 +434,14 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
       }
     }
 
+    if (isTimeoutSubmit) {
+      setIsTimeUp(true);
+    }
+
     setIsSubmitting(true);
-    const calculated = calculateQuizResults(quiz, answers);
+    // Strict scoring: if timed out, all unanswered questions automatically graded as wrong (0 pts)
+    const currentAnswers = answersRef.current;
+    const calculated = calculateQuizResults(quiz, currentAnswers, isTimeoutSubmit);
     setResults(calculated);
 
     if (!isPreviewMode) {
@@ -291,13 +453,17 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
           respondentName: respondentName.trim() || 'Anonymous Respondent',
           respondentEmail: respondentEmail.trim() || undefined,
           respondentSection: respondentSection.trim() || undefined,
-          answers,
+          answers: currentAnswers,
           evaluatedAnswers: calculated.evaluatedAnswers,
           totalScore: calculated.totalScore,
           maxScore: calculated.maxScore,
           percentage: calculated.percentage,
           isPassed: calculated.isPassed,
           timeSpentSeconds,
+          timedOut: isTimeoutSubmit,
+          unansweredCount: calculated.unansweredCount,
+          correctCount: calculated.correctCount,
+          wrongCount: calculated.wrongCount,
         });
 
         // Store local submission record to enforce 1-submission limit
@@ -311,6 +477,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
             maxScore: calculated.maxScore,
             percentage: calculated.percentage,
             isPassed: calculated.isPassed,
+            timedOut: isTimeoutSubmit,
           };
           try {
             localStorage.setItem(`damon_quiz_sub_${quiz.id}`, JSON.stringify(rec));
@@ -341,16 +508,21 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
     setAnswers({});
     setCurrentStep(0);
     setIsSubmitted(false);
+    setIsTimeUp(false);
+    setIsQuestionLocked(false);
+    setTimedOutQuestionNotice(null);
     setResults(null);
     setTimeSpentSeconds(0);
     setTimeRemainingSeconds(
-      quiz.settings.timeLimitMinutes ? quiz.settings.timeLimitMinutes * 60 : null
+      timerMode === 'whole-quiz' && quiz.settings.timeLimitMinutes ? quiz.settings.timeLimitMinutes * 60 : null
     );
+    setQuestionTimeRemaining(null);
   };
 
   // Render question card contents
   const renderQuestionInput = (question: Question) => {
     const val = answers[question.id];
+    const isInputDisabled = isTimeUp || isQuestionLocked || isSubmitting;
 
     switch (question.type) {
       case 'multiple-choice':
@@ -365,8 +537,11 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                 <button
                   key={opt.id}
                   type="button"
+                  disabled={isInputDisabled}
                   onClick={() => handleOptionSelect(question.id, opt.id, false)}
-                  className={`w-full text-left p-4 ${roundedClass} border-2 flex items-center justify-between transition-all cursor-pointer ${
+                  className={`w-full text-left p-4 ${roundedClass} border-2 flex items-center justify-between transition-all ${
+                    isInputDisabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+                  } ${
                     isSelected
                       ? 'border-current shadow-sm scale-[1.01]'
                       : 'border-zinc-200/80 hover:border-zinc-400 bg-white/70'
@@ -418,8 +593,11 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                 <button
                   key={opt.id}
                   type="button"
+                  disabled={isInputDisabled}
                   onClick={() => handleOptionSelect(question.id, opt.id, true)}
-                  className={`w-full text-left p-4 ${roundedClass} border-2 flex items-center justify-between transition-all cursor-pointer ${
+                  className={`w-full text-left p-4 ${roundedClass} border-2 flex items-center justify-between transition-all ${
+                    isInputDisabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+                  } ${
                     isSelected
                       ? 'border-current shadow-sm scale-[1.01]'
                       : 'border-zinc-200/80 hover:border-zinc-400 bg-white/70'
@@ -453,10 +631,11 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
           <div className="pt-2">
             <input
               type="text"
+              disabled={isInputDisabled}
               value={val || ''}
               onChange={(e) => handleOptionSelect(question.id, e.target.value, false)}
-              placeholder="Type your answer here..."
-              className={`w-full p-4 ${roundedClass} border-2 bg-white/90 text-sm font-medium focus:outline-none focus:ring-2`}
+              placeholder={isInputDisabled ? 'Time has expired' : 'Type your answer here...'}
+              className={`w-full p-4 ${roundedClass} border-2 bg-white/90 text-sm font-medium focus:outline-none focus:ring-2 disabled:opacity-60 disabled:cursor-not-allowed`}
               style={{
                 borderColor: quiz.theme.borderColor,
                 color: quiz.theme.textColor,
@@ -470,10 +649,11 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
           <div className="pt-2">
             <textarea
               rows={4}
+              disabled={isInputDisabled}
               value={val || ''}
               onChange={(e) => handleOptionSelect(question.id, e.target.value, false)}
-              placeholder="Type your detailed response here..."
-              className={`w-full p-4 ${roundedClass} border-2 bg-white/90 text-sm font-medium focus:outline-none focus:ring-2 resize-none`}
+              placeholder={isInputDisabled ? 'Time has expired' : 'Type your detailed response here...'}
+              className={`w-full p-4 ${roundedClass} border-2 bg-white/90 text-sm font-medium focus:outline-none focus:ring-2 resize-none disabled:opacity-60 disabled:cursor-not-allowed`}
               style={{
                 borderColor: quiz.theme.borderColor,
                 color: quiz.theme.textColor,
@@ -495,8 +675,9 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                   <button
                     key={starNum}
                     type="button"
+                    disabled={isInputDisabled}
                     onClick={() => handleOptionSelect(question.id, starNum, false)}
-                    className="p-1 hover:scale-110 transition-transform cursor-pointer"
+                    className="p-1 hover:scale-110 transition-transform disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                   >
                     <Star
                       className={`w-8 h-8 ${
@@ -529,8 +710,9 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                   <button
                     key={stepNum}
                     type="button"
+                    disabled={isInputDisabled}
                     onClick={() => handleOptionSelect(question.id, stepNum, false)}
-                    className={`w-10 h-11 ${roundedClass} font-bold font-mono text-sm border-2 transition-all cursor-pointer ${
+                    className={`w-10 h-11 ${roundedClass} font-bold font-mono text-sm border-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
                       isChosen
                         ? 'border-current shadow-md scale-105'
                         : 'border-zinc-200 hover:border-zinc-400 bg-white'
@@ -589,17 +771,48 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
         </div>
 
         {/* Countdown timer pill */}
-        {timeRemainingSeconds !== null && !isSubmitted && (
+        {timerMode === 'whole-quiz' && timeRemainingSeconds !== null && !isSubmitted && currentStep > 0 && (
           <div 
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono font-bold shadow-xs"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono font-bold shadow-xs transition-colors"
             style={{
               backgroundColor: timeRemainingSeconds < 60 ? '#fef2f2' : quiz.theme.cardBackgroundColor,
               color: timeRemainingSeconds < 60 ? '#dc2626' : quiz.theme.textColor,
-              borderColor: quiz.theme.borderColor,
+              borderColor: timeRemainingSeconds < 60 ? '#fca5a5' : quiz.theme.borderColor,
             }}
           >
-            <Clock className={`w-3.5 h-3.5 ${timeRemainingSeconds < 60 ? 'animate-pulse' : ''}`} />
-            <span>{formatCountdown(timeRemainingSeconds)}</span>
+            <Clock className={`w-3.5 h-3.5 ${timeRemainingSeconds < 60 ? 'animate-pulse text-rose-600' : ''}`} />
+            <span>Quiz Timer: {formatCountdown(timeRemainingSeconds)}</span>
+          </div>
+        )}
+
+        {timerMode === 'per-question' && questionTimeRemaining !== null && !isSubmitted && currentStep > 0 && (
+          <div 
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono font-bold shadow-xs transition-colors"
+            style={{
+              backgroundColor: questionTimeRemaining <= 5 ? '#fef2f2' : quiz.theme.cardBackgroundColor,
+              color: questionTimeRemaining <= 5 ? '#dc2626' : quiz.theme.textColor,
+              borderColor: questionTimeRemaining <= 5 ? '#fca5a5' : quiz.theme.borderColor,
+            }}
+          >
+            <Clock className={`w-3.5 h-3.5 ${questionTimeRemaining <= 5 ? 'animate-bounce text-rose-600' : ''}`} />
+            <span>Q Timer: {questionTimeRemaining}s</span>
+          </div>
+        )}
+
+        {/* Deadline Indicator */}
+        {isDeadlineValid && !isSubmitted && (
+          <div 
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold shadow-xs ${
+              isDeadlineExpired ? 'bg-rose-50 text-rose-700 border border-rose-200' : ''
+            }`}
+            style={{
+              backgroundColor: isDeadlineExpired ? undefined : quiz.theme.cardBackgroundColor,
+              color: isDeadlineExpired ? undefined : quiz.theme.textColor,
+              borderColor: isDeadlineExpired ? undefined : quiz.theme.borderColor,
+            }}
+          >
+            <CalendarClock className={`w-3.5 h-3.5 ${isDeadlineExpired ? 'text-rose-600' : ''}`} />
+            <span>{isDeadlineExpired ? 'Deadline Passed' : `Deadline: ${formatRemainingTime(deadlineDate)}`}</span>
           </div>
         )}
       </header>
@@ -635,6 +848,25 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                   {quiz.settings.successMessage || 'Thank you for taking the time to complete this quiz.'}
                 </p>
               </div>
+
+              {/* Time Expired Notice */}
+              {results.isTimedOut && (
+                <div className="p-4 bg-amber-50 border border-amber-300 rounded-2xl text-left space-y-1.5 animate-in fade-in">
+                  <div className="flex items-center gap-2 text-amber-900 font-bold text-sm">
+                    <Clock className="w-4 h-4 text-amber-700 shrink-0" />
+                    <span>Time Expired — Quiz Auto-Submitted</span>
+                  </div>
+                  <p className="text-xs text-amber-800 leading-relaxed">
+                    Your time limit ended. The system recorded your correct score of{' '}
+                    <strong className="text-amber-950 font-bold">{results.totalScore} / {results.maxScore} pts</strong> based on the questions you answered.
+                    {results.unansweredCount !== undefined && results.unansweredCount > 0 && (
+                      <span>
+                        {' '}The remaining <strong>{results.unansweredCount} unanswered question{results.unansweredCount > 1 ? 's were' : ' was'}</strong> automatically graded as wrong (0 pts).
+                      </span>
+                    )}
+                  </p>
+                </div>
+              )}
 
               {/* Score Display (if creator enabled immediate score) */}
               {quiz.settings.showScoreImmediately && (
@@ -687,11 +919,15 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                       >
                         <div className="flex items-center justify-between font-semibold">
                           <span>Q{idx + 1}: {ea.questionTitle}</span>
-                          {ea.isCorrect !== undefined && (
-                            <span className={ea.isCorrect ? 'text-emerald-600 font-bold' : 'text-rose-600 font-bold'}>
-                              {ea.isCorrect ? '✓ Correct' : '✕ Incorrect'}
+                          {ea.isTimedOut ? (
+                            <span className="text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md font-bold text-[11px]">
+                              ✕ Timed Out (Wrong - 0 pts)
                             </span>
-                          )}
+                          ) : ea.isCorrect !== undefined ? (
+                            <span className={ea.isCorrect ? 'text-emerald-600 font-bold' : 'text-rose-600 font-bold'}>
+                              {ea.isCorrect ? `✓ Correct (+${ea.pointsEarned} pts)` : '✕ Incorrect (0 pts)'}
+                            </span>
+                          ) : null}
                         </div>
 
                         {/* Explanation */}
@@ -762,10 +998,98 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                 <p className="text-sm opacity-80 leading-relaxed max-w-xl">
                   {quiz.description || 'Answer the questions thoughtfully and submit your responses.'}
                 </p>
+
+                {/* Active Deadline Badge (when deadline is not yet expired) */}
+                {isDeadlineValid && !isDeadlineExpired && (
+                  <div 
+                    className="p-3.5 rounded-2xl border flex items-center gap-3 text-xs text-left"
+                    style={{
+                      backgroundColor: `${quiz.theme.primaryColor}10`,
+                      borderColor: quiz.theme.borderColor,
+                      color: quiz.theme.textColor,
+                    }}
+                  >
+                    <div 
+                      className="w-8 h-8 rounded-xl flex items-center justify-center text-white shrink-0 shadow-2xs"
+                      style={{ backgroundColor: quiz.theme.primaryColor }}
+                    >
+                      <CalendarClock className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1">
+                      <span className="font-bold block">
+                        Submission Deadline: {deadlineDate?.toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                      </span>
+                      <span className="text-[11px] opacity-75 block mt-0.5">
+                        {formatRemainingTime(deadlineDate)} until quiz submissions close.
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Already Submitted State for 1-submission limit */}
-              {existingSubmission && quiz.settings.limitOneSubmission !== false && !isPreviewMode ? (
+              {/* Deadline Expired State */}
+              {isDeadlineExpired && !isPreviewMode ? (
+                <div className="space-y-5 pt-4 border-t text-left" style={{ borderColor: quiz.theme.borderColor }}>
+                  <div className="p-4 sm:p-5 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3.5">
+                    <div className="p-2.5 bg-rose-600 text-white rounded-xl shrink-0 mt-0.5 shadow-2xs">
+                      <CalendarX className="w-5 h-5" />
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className="text-sm sm:text-base font-bold text-rose-950">
+                        Quiz Closed — Deadline Has Expired
+                      </h3>
+                      <p className="text-xs text-rose-800 leading-relaxed">
+                        The quiz creator configured a strict submission cutoff of{' '}
+                        <strong>
+                          {deadlineDate?.toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                        </strong>
+                        . The deadline has passed, and new submissions can no longer be accepted.
+                      </p>
+                    </div>
+                  </div>
+
+                  {existingSubmission && (
+                    <div
+                      className="p-4 sm:p-5 rounded-2xl border text-xs space-y-2.5"
+                      style={{
+                        backgroundColor: `${quiz.theme.primaryColor}08`,
+                        borderColor: quiz.theme.borderColor,
+                      }}
+                    >
+                      <div className="font-bold uppercase tracking-wider text-[10px] opacity-60">
+                        Your Previous Submission Summary
+                      </div>
+                      {existingSubmission.name && (
+                        <div className="flex justify-between items-center">
+                          <span className="opacity-70">Respondent:</span>
+                          <span className="font-semibold">{existingSubmission.name}</span>
+                        </div>
+                      )}
+                      {existingSubmission.percentage !== undefined && (
+                        <div className="flex justify-between items-center font-bold">
+                          <span className="opacity-70">Score Achieved:</span>
+                          <span className="font-mono">{existingSubmission.totalScore} / {existingSubmission.maxScore} ({existingSubmission.percentage}%)</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center text-[11px] opacity-60">
+                        <span>Submitted:</span>
+                        <span>{new Date(existingSubmission.submittedAt).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      disabled
+                      className="px-6 py-3 rounded-xl text-xs font-bold bg-zinc-200 text-zinc-500 cursor-not-allowed flex items-center gap-2"
+                    >
+                      <Lock className="w-3.5 h-3.5" />
+                      <span>Submissions Closed</span>
+                    </button>
+                  </div>
+                </div>
+              ) : existingSubmission && quiz.settings.limitOneSubmission !== false && !isPreviewMode ? (
                 <div className="space-y-5 pt-4 border-t" style={{ borderColor: quiz.theme.borderColor }}>
                   <div className="p-4 sm:p-5 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-start gap-3.5">
                     <div className="p-2.5 bg-amber-500 text-white rounded-xl shrink-0 mt-0.5">
@@ -968,7 +1292,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                 </>
               )}
             </div>
-          ) : quiz.layout === 'step-by-step' || quiz.layout === 'card-deck' ? (
+          ) : effectiveLayout === 'step-by-step' || effectiveLayout === 'card-deck' ? (
             /* ================= 3. STEP-BY-STEP / CARD DECK ================= */
             <div className="space-y-6">
               {/* Progress Bar */}
@@ -988,20 +1312,87 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                 </div>
               </div>
 
-              {/* Active Question Card */}
+              {/* Active Question Card with Custom Preset Animation */}
               {(() => {
                 const activeQ = quiz.questions[currentStep - 1];
                 if (!activeQ) return null;
 
                 return (
-                  <div
+                  <motion.div
                     key={activeQ.id}
-                    className={`p-6 sm:p-8 ${roundedClass} border shadow-lg space-y-5 animate-in slide-in-from-right-4 duration-200`}
+                    initial={animConfig.initial}
+                    animate={animConfig.animate}
+                    exit={animConfig.exit}
+                    transition={animConfig.transition}
+                    className={`p-6 sm:p-8 ${roundedClass} border shadow-lg space-y-5`}
                     style={{
                       backgroundColor: quiz.theme.cardBackgroundColor,
                       borderColor: quiz.theme.borderColor,
                     }}
                   >
+                    {/* Per-Question Countdown Timer Bar */}
+                    {timerMode === 'per-question' && questionTimeRemaining !== null && (
+                      <div className="p-3 bg-indigo-50/90 border border-indigo-200 rounded-xl space-y-1.5 animate-in fade-in">
+                        <div className="flex items-center justify-between text-xs font-bold text-indigo-950">
+                          <div className="flex items-center gap-1.5">
+                            <Clock className={`w-4 h-4 ${questionTimeRemaining <= 5 ? 'text-rose-600 animate-bounce' : 'text-indigo-600'}`} />
+                            <span>Question Timer</span>
+                            {questionTimeRemaining <= 5 && (
+                              <span className="text-[10px] text-rose-600 font-extrabold uppercase animate-pulse">
+                                Hurry! Time Running Out
+                              </span>
+                            )}
+                          </div>
+                          <span className={`font-mono text-sm ${questionTimeRemaining <= 5 ? 'text-rose-600 font-extrabold' : 'text-indigo-700'}`}>
+                            {questionTimeRemaining}s remaining
+                          </span>
+                        </div>
+                        <div className="w-full h-2 bg-indigo-200/60 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full transition-all duration-1000 ease-linear rounded-full ${
+                              questionTimeRemaining <= 5 ? 'bg-rose-500' : 'bg-indigo-600'
+                            }`}
+                            style={{
+                              width: `${Math.max(0, Math.min(100, (questionTimeRemaining / questionMaxTime) * 100))}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Timeout notices */}
+                    {timedOutQuestionNotice && (
+                      <div className="p-3 bg-amber-50 border border-amber-300 text-amber-900 rounded-xl text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+                        <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span>{timedOutQuestionNotice}</span>
+                      </div>
+                    )}
+
+                    {isQuestionLocked && (
+                      <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+                        <Lock className="w-4 h-4 text-rose-600 shrink-0" />
+                        <span>Question time expired. Answers locked. Moving to next question...</span>
+                      </div>
+                    )}
+
+                    {/* Whole Quiz Timer Warning when < 60s */}
+                    {timerMode === 'whole-quiz' && timeRemainingSeconds !== null && timeRemainingSeconds < 60 && !isTimeUp && (
+                      <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-semibold flex items-center justify-between animate-pulse">
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-rose-600 shrink-0" />
+                          <span>Hurry! Less than 1 minute remaining for the quiz!</span>
+                        </div>
+                        <span className="font-mono font-bold text-rose-700">{formatCountdown(timeRemainingSeconds)}</span>
+                      </div>
+                    )}
+
+                    {isTimeUp && (
+                      <div className="p-3 bg-rose-100 border border-rose-300 text-rose-900 rounded-xl text-xs font-bold flex items-center gap-2 animate-in fade-in">
+                        <Loader2 className="w-4 h-4 animate-spin text-rose-700 shrink-0" />
+                        <span>Time's up! Grading your answers and auto-submitting quiz...</span>
+                      </div>
+                    )}
+
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <span 
@@ -1043,8 +1434,8 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                       <button
                         type="button"
                         onClick={handlePrevStep}
-                        disabled={currentStep <= 1}
-                        className="px-4 py-2 text-xs font-semibold rounded-xl border hover:bg-black/5 disabled:opacity-30 transition-colors flex items-center gap-1.5 cursor-pointer"
+                        disabled={currentStep <= 1 || isQuestionLocked || isTimeUp}
+                        className="px-4 py-2 text-xs font-semibold rounded-xl border hover:bg-black/5 disabled:opacity-30 transition-colors flex items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed"
                         style={{ borderColor: quiz.theme.borderColor }}
                       >
                         <ArrowLeft className="w-3.5 h-3.5" />
@@ -1054,8 +1445,8 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                       <button
                         type="button"
                         onClick={handleNextStep}
-                        disabled={isSubmitting}
-                        className={`px-6 py-2.5 ${roundedClass} text-xs font-bold shadow-sm hover:scale-[1.02] active:scale-[0.99] transition-all flex items-center gap-2 cursor-pointer`}
+                        disabled={isSubmitting || isTimeUp || isQuestionLocked}
+                        className={`px-6 py-2.5 ${roundedClass} text-xs font-bold shadow-sm hover:scale-[1.02] active:scale-[0.99] transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed`}
                         style={{
                           backgroundColor: quiz.theme.primaryColor,
                           color: quiz.theme.primaryTextColor,
@@ -1071,7 +1462,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                         )}
                       </button>
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })()}
             </div>
@@ -1110,7 +1501,36 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                   {quiz.description}
                 </p>
 
-                {existingSubmission && quiz.settings.limitOneSubmission !== false && !isPreviewMode ? (
+                {isDeadlineValid && !isDeadlineExpired && (
+                  <div 
+                    className="p-3 rounded-xl border flex items-center gap-2.5 text-xs mt-3"
+                    style={{
+                      backgroundColor: `${quiz.theme.primaryColor}10`,
+                      borderColor: quiz.theme.borderColor,
+                    }}
+                  >
+                    <CalendarClock className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>
+                      Submission Deadline: <strong>{deadlineDate?.toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</strong> ({formatRemainingTime(deadlineDate)})
+                    </span>
+                  </div>
+                )}
+
+                {isDeadlineExpired && !isPreviewMode ? (
+                  <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3 mt-4">
+                    <div className="p-2 bg-rose-600 text-white rounded-xl shrink-0 mt-0.5">
+                      <CalendarX className="w-4 h-4" />
+                    </div>
+                    <div className="space-y-1 text-xs">
+                      <h4 className="font-bold text-rose-950">
+                        Quiz Closed — Deadline Has Expired
+                      </h4>
+                      <p className="text-rose-800 leading-relaxed">
+                        The creator set a submission deadline of <strong>{deadlineDate?.toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</strong>. Submissions are no longer accepted.
+                      </p>
+                    </div>
+                  </div>
+                ) : existingSubmission && quiz.settings.limitOneSubmission !== false && !isPreviewMode ? (
                   <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-start gap-3 mt-4">
                     <div className="p-2 bg-amber-500 text-white rounded-xl shrink-0 mt-0.5">
                       <Lock className="w-4 h-4" />
@@ -1194,7 +1614,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
               </div>
 
               {/* All Questions in a continuous elegant stream */}
-              {!(existingSubmission && quiz.settings.limitOneSubmission !== false && !isPreviewMode) && (
+              {!(existingSubmission && quiz.settings.limitOneSubmission !== false && !isPreviewMode) && !(isDeadlineExpired && !isPreviewMode) && (
                 <>
                   {quiz.questions.map((question, qIdx) => (
                     <div
@@ -1246,16 +1666,16 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                   <div className="pt-2 flex justify-end">
                     <button
                       type="button"
-                      onClick={handleSubmit}
-                      disabled={isSubmitting}
-                      className={`px-8 py-3.5 ${roundedClass} text-sm font-bold shadow-md hover:scale-[1.02] active:scale-[0.99] transition-all flex items-center gap-2 cursor-pointer`}
+                      onClick={() => handleSubmit(false)}
+                      disabled={isSubmitting || isTimeUp}
+                      className={`px-8 py-3.5 ${roundedClass} text-sm font-bold shadow-md hover:scale-[1.02] active:scale-[0.99] transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed`}
                       style={{
                         backgroundColor: quiz.theme.primaryColor,
                         color: quiz.theme.primaryTextColor,
                       }}
                     >
                       <Send className="w-4 h-4" />
-                      <span>{isSubmitting ? 'Submitting Answers...' : 'Submit All Answers'}</span>
+                      <span>{isSubmitting ? 'Submitting Answers...' : isTimeUp ? 'Time Expired' : 'Submit All Answers'}</span>
                     </button>
                   </div>
                 </>

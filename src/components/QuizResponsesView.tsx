@@ -565,11 +565,17 @@ export const QuizResponsesView: React.FC<QuizResponsesViewProps> = ({
                           className="hover:bg-zinc-50/70 transition-colors cursor-pointer"
                         >
                           <td className="py-3 px-4 font-semibold text-zinc-900">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span>{res.respondentName || 'Anonymous Respondent'}</span>
                               {res.respondentSection && (
                                 <span className="px-2 py-0.5 text-[10px] font-semibold bg-zinc-100 text-zinc-700 rounded-md border border-zinc-200">
                                   {res.respondentSection}
+                                </span>
+                              )}
+                              {(res.timedOut || (res.unansweredCount && res.unansweredCount > 0)) && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200" title="Submitted due to timer running out">
+                                  <Clock className="w-2.5 h-2.5 text-amber-600" />
+                                  Timed Out ({res.unansweredCount || 0} unanswered)
                                 </span>
                               )}
                             </div>
@@ -635,8 +641,12 @@ export const QuizResponsesView: React.FC<QuizResponsesViewProps> = ({
                                 <div className="space-y-2.5">
                                   {quiz.questions.map((q, idx) => {
                                     const ans = res.answers[q.id];
-                                    let answerDisplay = '-';
+                                    const evalAns = res.evaluatedAnswers?.find((ea) => ea.questionId === q.id);
+                                    const isTimedOut = evalAns?.isTimedOut || ans === undefined || ans === null || ans === '' || (Array.isArray(ans) && ans.length === 0);
+                                    const isCorrect = evalAns?.isCorrect;
+                                    const pointsEarned = evalAns?.pointsEarned ?? (isCorrect ? q.points : 0);
 
+                                    let answerDisplay = '-';
                                     if (Array.isArray(ans)) {
                                       answerDisplay = ans.map((item) => {
                                         const opt = q.options?.find((o) => o.id === item);
@@ -647,15 +657,57 @@ export const QuizResponsesView: React.FC<QuizResponsesViewProps> = ({
                                       answerDisplay = opt ? opt.text : String(ans);
                                     }
 
+                                    const correctOpt = q.options?.find((o) => o.isCorrect);
+
                                     return (
-                                      <div key={q.id} className="p-3 bg-white border border-zinc-200 rounded-xl text-xs space-y-1">
-                                        <div className="font-semibold text-zinc-800">
-                                          Q{idx + 1}: {q.title}
+                                      <div 
+                                        key={q.id} 
+                                        className={`p-3.5 bg-white border rounded-xl text-xs space-y-1.5 ${
+                                          isTimedOut
+                                            ? 'border-rose-200 bg-rose-50/20'
+                                            : isCorrect
+                                            ? 'border-emerald-200 bg-emerald-50/20'
+                                            : 'border-rose-200 bg-rose-50/10'
+                                        }`}
+                                      >
+                                        <div className="flex items-start justify-between gap-2">
+                                          <div className="font-semibold text-zinc-800">
+                                            Q{idx + 1}: {q.title}
+                                            <span className="text-[11px] text-zinc-400 font-normal ml-1">({q.points} pts)</span>
+                                          </div>
+                                          <div>
+                                            {isTimedOut ? (
+                                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                                                <XCircle className="w-3 h-3 text-rose-600" />
+                                                Timed Out / Unanswered (Wrong - 0 pts)
+                                              </span>
+                                            ) : isCorrect ? (
+                                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                                Correct (+{pointsEarned} pts)
+                                              </span>
+                                            ) : (
+                                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                                                <XCircle className="w-3 h-3 text-rose-600" />
+                                                Incorrect (0 pts)
+                                              </span>
+                                            )}
+                                          </div>
                                         </div>
+
                                         <div className="flex items-center gap-2 text-zinc-600 font-mono">
                                           <span className="text-zinc-400 text-[11px]">Selected:</span>
-                                          <span className="font-sans font-medium text-zinc-900">{answerDisplay}</span>
+                                          <span className={`font-sans font-medium ${isTimedOut ? 'italic text-rose-600' : 'text-zinc-900'}`}>
+                                            {isTimedOut ? 'No answer submitted before timer ran out' : answerDisplay}
+                                          </span>
                                         </div>
+
+                                        {!isCorrect && correctOpt && (
+                                          <div className="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200/60 flex items-center gap-1.5">
+                                            <span className="font-semibold">Correct Answer:</span>
+                                            <span>{correctOpt.text}</span>
+                                          </div>
+                                        )}
                                       </div>
                                     );
                                   })}

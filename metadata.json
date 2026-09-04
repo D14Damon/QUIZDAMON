@@ -1,0 +1,6 @@
+{
+  "name": "𝓓𝓪𝓶𝓸𝓷-𝓠𝓤𝓘𝓩",
+  "description": "Create customizable, beautifully designed quizzes with custom layouts and color themes, share quiz links to respondents, and track responses in your creator dashboard.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

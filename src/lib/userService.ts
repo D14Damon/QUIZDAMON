@@ -7,6 +7,7 @@ import {
   serverTimestamp, 
   updateProfile 
 } from './firebase';
+import { cleanForFirestore } from './quizDbService';
 import { UserProfile } from '../types';
 
 /**
@@ -125,7 +126,7 @@ export async function saveUserProfile(
     }
 
     // 1. Save in Firestore users collection (can store up to 1MB, plenty for 500x500 base64 image)
-    await setDoc(userDocRef, payload, { merge: true });
+    await setDoc(userDocRef, cleanForFirestore(payload), { merge: true });
 
     // 2. Safely sync with Firebase Auth user profile
     // CRITICAL: Firebase Auth photoURL has a strict limit of 2,048 characters.

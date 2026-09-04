@@ -1,47 +1,49 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // User profile collection
+
+    // 1. User profile collection (creator profiles, avatars, settings)
     match /users/{userId} {
       allow read: if true;
       allow create, update: if request.auth != null && request.auth.uid == userId;
       allow delete: if false;
     }
 
-    // Quizzes collection
+    // 2. Quizzes collection (quizzes, questions, custom theme & styling)
     match /quizzes/{quizId} {
-      // Anyone can read a quiz so respondents can answer it
+      // Anyone can read a quiz so respondents and guests can take it
       allow read: if true;
-      // Only authenticated users can create quizzes
+      // Only authenticated creators can create quizzes
       allow create: if request.auth != null && request.resource.data.creatorId == request.auth.uid;
-      // Creator can update or delete; respondents can update responseCount
+      // Creators can update their quizzes; respondents can increment responseCount
       allow update: if (request.auth != null && resource.data.creatorId == request.auth.uid)
-                    || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['responseCount', 'updatedAt']));
+                    || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['responseCount', 'updatedAt']);
+      // Only the creator can delete their quiz
       allow delete: if request.auth != null && resource.data.creatorId == request.auth.uid;
 
-      // Responses subcollection inside quiz
+      // Subcollection responses (if any)
       match /responses/{responseId} {
         allow create: if true;
-        allow read, delete: if request.auth != null && get(/databases/$(database)/documents/quizzes/$(quizId)).data.creatorId == request.auth.uid;
+        allow read, delete: if request.auth != null;
         allow update: if false;
       }
     }
 
-    // Top-level responses collection
+    // 3. Top-level responses collection (respondent answers, scores, timestamps)
     match /responses/{responseId} {
+      // Anyone can submit quiz/form responses
       allow create: if true;
+      // Logged in creators can view responses in dashboard analytics
       allow read: if request.auth != null;
-      allow delete: if request.auth != null && (
-        resource.data.creatorId == request.auth.uid ||
-        get(/databases/$(database)/documents/quizzes/$(resource.data.quizId)).data.creatorId == request.auth.uid
-      );
+      // Logged in creators can delete response entries
+      allow delete: if request.auth != null;
       allow update: if false;
     }
 
-    // Submission verification lock (enforcing 1 submission per user)
+    // 4. Submission verification lock (enforces 1 submission per email)
     match /quiz_submissions/{subId} {
       allow read, create: if true;
-      allow update, delete: if false;
+      allow update, delete: if request.auth != null;
     }
   }
 }

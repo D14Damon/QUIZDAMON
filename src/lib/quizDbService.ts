@@ -80,12 +80,45 @@ export async function getQuizById(quizIdOrSlug: string): Promise<Quiz | null> {
   }
 }
 
+/**
+ * Deeply sanitizes any object or array before sending to Firestore, stripping out
+ * all `undefined` fields. Firestore strictly rejects documents with undefined properties
+ * with the error: "Function setDoc() called with invalid data. Unsupported field value: undefined".
+ */
+export function cleanForFirestore<T>(data: T): T {
+  if (data === undefined) {
+    return null as any;
+  }
+  if (data === null || typeof data !== 'object') {
+    return data;
+  }
+  if (data instanceof Date) {
+    return data;
+  }
+  // Preserve Firestore Sentinel FieldValues (serverTimestamp(), increment(), etc.)
+  if ('_methodName' in (data as any) || typeof (data as any).isEqual === 'function') {
+    return data;
+  }
+  if (Array.isArray(data)) {
+    return data
+      .filter((item) => item !== undefined)
+      .map((item) => cleanForFirestore(item)) as any;
+  }
+  const clean: Record<string, any> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (value !== undefined) {
+      clean[key] = cleanForFirestore(value);
+    }
+  }
+  return clean as T;
+}
+
 // Save or Update a quiz (Enforces max 15 quizzes limit for creators)
 export async function saveQuiz(quiz: Partial<Quiz> & { id?: string; creatorId: string }): Promise<string> {
   try {
     const sanitizedSlug = quiz.customSlug 
       ? quiz.customSlug.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60)
-      : undefined;
+      : (quiz.title ? generateDefaultQuizSlug(quiz.title) : undefined);
 
     if (quiz.id) {
       const docRef = doc(db, 'quizzes', quiz.id);
@@ -93,10 +126,10 @@ export async function saveQuiz(quiz: Partial<Quiz> & { id?: string; creatorId: s
         ...quiz,
         updatedAt: serverTimestamp(),
       };
-      if (sanitizedSlug !== undefined) {
+      if (sanitizedSlug) {
         updatePayload.customSlug = sanitizedSlug;
       }
-      await updateDoc(docRef, updatePayload);
+      await updateDoc(docRef, cleanForFirestore(updatePayload));
       return quiz.id;
     } else {
       // Check current quiz count for this user
@@ -110,12 +143,12 @@ export async function saveQuiz(quiz: Partial<Quiz> & { id?: string; creatorId: s
       const newQuizData = {
         ...quiz,
         id: docRef.id,
-        customSlug: sanitizedSlug || undefined,
+        customSlug: sanitizedSlug || generateDefaultQuizSlug(quiz.title || 'untitled-quiz'),
         responseCount: 0,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
-      await setDoc(docRef, newQuizData);
+      await setDoc(docRef, cleanForFirestore(newQuizData));
       return docRef.id;
     }
   } catch (error) {
@@ -172,17 +205,17 @@ export async function submitQuizResponse(
   try {
     // 1. Add to top-level 'responses' collection
     const colRef = collection(db, 'responses');
-    const docRef = await addDoc(colRef, {
+    const docRef = await addDoc(colRef, cleanForFirestore({
       ...responseData,
       quizId,
       submittedAt: serverTimestamp(),
-    });
+    }));
 
     // 2. If email is provided, record to quiz_submissions to lock 1-submission-per-user
     if (responseData.respondentEmail && responseData.respondentEmail.trim()) {
       try {
         const key = `${quizId}_${responseData.respondentEmail.trim().toLowerCase().replace(/[^a-z0-9@._-]/g, '_')}`;
-        await setDoc(doc(db, 'quiz_submissions', key), {
+        await setDoc(doc(db, 'quiz_submissions', key), cleanForFirestore({
           quizId,
           email: responseData.respondentEmail.trim().toLowerCase(),
           respondentName: responseData.respondentName || 'Anonymous',
@@ -190,7 +223,7 @@ export async function submitQuizResponse(
           score: responseData.totalScore,
           percentage: responseData.percentage,
           submittedAt: serverTimestamp(),
-        });
+        }));
       } catch (lockErr) {
         console.warn('Could not record quiz_submissions lock:', lockErr);
       }
@@ -297,11 +330,11 @@ export async function seedStarterQuizzes(userId: string, userEmail: string): Pro
         updatedAt: new Date(),
       };
 
-      await setDoc(docRef, {
+      await setDoc(docRef, cleanForFirestore({
         ...newQuiz,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-      });
+      }));
       created.push(newQuiz);
     }
     return created;

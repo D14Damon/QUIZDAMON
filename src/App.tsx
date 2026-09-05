@@ -19,7 +19,7 @@ import { QuizTaker } from './components/QuizTaker/QuizTaker';
 import { AuthScreen } from './components/AuthScreen';
 import { UserProfileModal } from './components/UserProfileModal';
 import { QuizLimitModal } from './components/QuizLimitModal';
-import { AlertCircle, Sparkles, ArrowRight } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -287,32 +287,12 @@ export default function App() {
     }
 
     return (
-      <div className="relative">
-        {/* Floating top bar allowing creator/user to return to dashboard */}
-        <div className="fixed top-3 right-3 z-50 flex items-center gap-2">
-          <button
-            onClick={() => {
-              window.history.pushState({}, '', window.location.pathname);
-              setCurrentView('dashboard');
-              if (user) loadUserQuizzes(user.uid);
-            }}
-            className="px-3.5 py-1.5 bg-zinc-900/90 hover:bg-zinc-900 text-white text-xs font-bold rounded-xl backdrop-blur-md shadow-md transition-all cursor-pointer flex items-center gap-2"
-          >
-            <div className="w-5 h-5 rounded-md bg-white p-0.5 overflow-hidden flex items-center justify-center shrink-0">
-              <img src="/dq_logo.jpg" alt="D•Q" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
-            </div>
-            <span>𝓓𝓪𝓶𝓸𝓷-𝓠𝓤𝓘𝓩</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
-
-        <QuizTaker
-          quiz={sharedQuiz}
-          onSubmissionComplete={() => {
-            if (user) loadUserQuizzes(user.uid);
-          }}
-        />
-      </div>
+      <QuizTaker
+        quiz={sharedQuiz}
+        onSubmissionComplete={() => {
+          if (user) loadUserQuizzes(user.uid);
+        }}
+      />
     );
   }
 

@@ -904,7 +904,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                 </div>
               )}
 
-              {/* Answers & Explanations Review */}
+              {/* Answers Review without revealing correct answers */}
               {quiz.settings.showScoreImmediately && results.evaluatedAnswers && (
                 <div className="text-left space-y-4 pt-4 border-t" style={{ borderColor: quiz.theme.borderColor }}>
                   <h3 className="text-xs font-bold uppercase tracking-wider opacity-70">
@@ -914,28 +914,21 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                     {results.evaluatedAnswers.map((ea, idx) => (
                       <div 
                         key={ea.questionId}
-                        className="p-4 rounded-xl border text-xs space-y-1.5"
+                        className="p-3.5 rounded-xl border text-xs space-y-1"
                         style={{ borderColor: quiz.theme.borderColor }}
                       >
-                        <div className="flex items-center justify-between font-semibold">
-                          <span>Q{idx + 1}: {ea.questionTitle}</span>
+                        <div className="flex items-center justify-between font-semibold gap-3">
+                          <span className="leading-snug">Q{idx + 1}: {ea.questionTitle}</span>
                           {ea.isTimedOut ? (
-                            <span className="text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md font-bold text-[11px]">
-                              ✕ Timed Out (Wrong - 0 pts)
+                            <span className="text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md font-bold text-[11px] shrink-0">
+                              ✕ Timed Out (0 pts)
                             </span>
                           ) : ea.isCorrect !== undefined ? (
-                            <span className={ea.isCorrect ? 'text-emerald-600 font-bold' : 'text-rose-600 font-bold'}>
+                            <span className={`px-2 py-0.5 rounded-md font-bold text-[11px] shrink-0 ${ea.isCorrect ? 'text-emerald-700 bg-emerald-50 border border-emerald-200' : 'text-rose-700 bg-rose-50 border border-rose-200'}`}>
                               {ea.isCorrect ? `✓ Correct (+${ea.pointsEarned} pts)` : '✕ Incorrect (0 pts)'}
                             </span>
                           ) : null}
                         </div>
-
-                        {/* Explanation */}
-                        {quiz.questions[idx]?.explanation && (
-                          <p className="text-[11px] opacity-70 italic pt-1 border-t border-zinc-100">
-                            Note: {quiz.questions[idx].explanation}
-                          </p>
-                        )}
                       </div>
                     ))}
                   </div>

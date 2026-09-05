@@ -43,14 +43,19 @@ export const Navbar: React.FC<NavbarProps> = ({
     <header className="sticky top-0 z-40 w-full bg-white/95 backdrop-blur-md border-b border-zinc-200 shadow-xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
         
-        {/* Brand: 𝓓𝓪𝓶𝓸𝓷-𝓠𝓤𝓘𝓩 */}
+        {/* Brand: 𝓓𝓪𝓶𝓸𝓷-𝓠𝓤𝓘𝓩 with custom D•Q logo */}
         <div className="flex items-center gap-6">
           <button 
             onClick={() => onNavigate('dashboard')}
             className="flex items-center gap-2.5 group text-left cursor-pointer"
           >
-            <div className="w-8 h-8 rounded-xl bg-zinc-900 text-white flex items-center justify-center font-bold tracking-tight shadow-sm group-hover:scale-105 transition-transform">
-              <Sparkles className="w-4 h-4 text-amber-400" />
+            <div className="w-8.5 h-8.5 rounded-xl bg-white border border-zinc-200 overflow-hidden flex items-center justify-center shadow-2xs group-hover:scale-105 transition-transform p-0.5 shrink-0">
+              <img 
+                src="/dq_logo.jpg" 
+                alt="D•Q" 
+                className="w-full h-full object-contain rounded-lg" 
+                referrerPolicy="no-referrer" 
+              />
             </div>
             <div>
               <div className="flex items-center gap-2">

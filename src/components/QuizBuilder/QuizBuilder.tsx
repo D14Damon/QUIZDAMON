@@ -283,81 +283,81 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
 
   return (
     <div className="min-h-screen bg-zinc-50 pb-20">
-      {/* Sticky Top Bar */}
-      <div className="sticky top-16 z-30 bg-white border-b border-zinc-200 px-4 sm:px-6 py-3 shadow-2xs">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* Sticky Top Bar - Clean, professional alignment with single-line controls */}
+      <div className="sticky top-16 z-30 bg-white/95 backdrop-blur-md border-b border-zinc-200 px-3 sm:px-6 py-2 shadow-2xs">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 overflow-x-auto no-scrollbar flex-nowrap">
           
-          <div className="flex items-center gap-3">
+          {/* Left: Back button, Quiz Title, Question count badge */}
+          <div className="flex items-center gap-2.5 shrink-0">
             <button
               onClick={onBack}
-              className="p-2 hover:bg-zinc-100 rounded-xl text-zinc-500 hover:text-zinc-900 transition-colors cursor-pointer shrink-0"
+              className="h-8.5 w-8.5 flex items-center justify-center hover:bg-zinc-100 rounded-xl text-zinc-500 hover:text-zinc-900 transition-colors cursor-pointer shrink-0"
               title="Return to Dashboard"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-4 h-4 shrink-0" />
             </button>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <div className="relative flex items-center group">
                 <input
                   type="text"
                   value={quiz.title}
                   onChange={(e) => updateQuizField('title', e.target.value)}
                   placeholder="Quiz Title..."
-                  className="text-sm sm:text-base font-bold text-zinc-900 bg-transparent hover:bg-zinc-100 focus:bg-white border border-transparent hover:border-zinc-200 focus:border-zinc-300 rounded-lg px-2 py-1 pr-6 transition-all focus:outline-none max-w-[160px] sm:max-w-xs md:max-w-sm truncate cursor-text"
+                  className="h-8.5 text-sm sm:text-base font-bold text-zinc-900 bg-transparent hover:bg-zinc-100 focus:bg-white border border-transparent hover:border-zinc-200 focus:border-zinc-300 rounded-lg px-2.5 py-1 pr-6 transition-all focus:outline-none w-36 sm:w-48 md:w-56 truncate cursor-text whitespace-nowrap"
                   title="Click to rename quiz"
                 />
-                <Pencil className="w-3.5 h-3.5 text-zinc-400 absolute right-2 pointer-events-none group-focus-within:opacity-0" />
+                <Pencil className="w-3.5 h-3.5 text-zinc-400 absolute right-2 pointer-events-none group-focus-within:opacity-0 shrink-0" />
               </div>
-              <span className="text-zinc-300 hidden md:inline">•</span>
-              <span className="text-xs text-zinc-500 font-medium hidden md:inline">
+              <span className="hidden xl:inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-zinc-100 text-zinc-600 border border-zinc-200 whitespace-nowrap shrink-0">
                 {quiz.questions.length} {quiz.questions.length === 1 ? 'question' : 'questions'}
               </span>
             </div>
           </div>
 
-          {/* Center Tabs */}
-          <div className="flex items-center bg-zinc-100 p-1 rounded-xl">
+          {/* Center Tabs: Questions, Design Studio, Settings */}
+          <div className="flex items-center bg-zinc-100/90 p-1 rounded-xl shrink-0 h-9 border border-zinc-200/50">
             <button
               onClick={() => setActiveTab('questions')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+              className={`h-7 flex items-center gap-1.5 px-3 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 activeTab === 'questions'
                   ? 'bg-white text-zinc-900 shadow-xs'
                   : 'text-zinc-600 hover:text-zinc-900'
               }`}
             >
-              <ListChecks className="w-3.5 h-3.5" />
-              Questions
+              <ListChecks className="w-3.5 h-3.5 shrink-0" />
+              <span className="whitespace-nowrap">Questions</span>
             </button>
 
             <button
               onClick={() => setActiveTab('design')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+              className={`h-7 flex items-center gap-1.5 px-3 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 activeTab === 'design'
                   ? 'bg-white text-zinc-900 shadow-xs'
                   : 'text-zinc-600 hover:text-zinc-900'
               }`}
             >
-              <Palette className="w-3.5 h-3.5" />
-              Design & Layout Studio
+              <Palette className="w-3.5 h-3.5 shrink-0" />
+              <span className="whitespace-nowrap">Design Studio</span>
             </button>
 
             <button
               onClick={() => setActiveTab('settings')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+              className={`h-7 flex items-center gap-1.5 px-3 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 activeTab === 'settings'
                   ? 'bg-white text-zinc-900 shadow-xs'
                   : 'text-zinc-600 hover:text-zinc-900'
               }`}
             >
-              <SettingsIcon className="w-3.5 h-3.5" />
-              Quiz Settings
+              <SettingsIcon className="w-3.5 h-3.5 shrink-0" />
+              <span className="whitespace-nowrap">Settings</span>
             </button>
           </div>
 
           {/* Right Action Buttons */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 flex-nowrap">
             <button
               onClick={() => setShowTimerModal(true)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 border text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+              className={`h-8.5 flex items-center gap-1.5 px-3 border text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap shrink-0 select-none ${
                 quiz.settings.timerMode === 'whole-quiz' || (!quiz.settings.timerMode && quiz.settings.timeLimitMinutes)
                   ? 'bg-amber-50 hover:bg-amber-100 border-amber-300 text-amber-900 shadow-2xs'
                   : quiz.settings.timerMode === 'per-question'
@@ -366,14 +366,14 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
               }`}
               title="Configure countdown timer (whole quiz or per question)"
             >
-              <Clock className={`w-3.5 h-3.5 ${
+              <Clock className={`w-3.5 h-3.5 shrink-0 ${
                 quiz.settings.timerMode === 'whole-quiz' || (!quiz.settings.timerMode && quiz.settings.timeLimitMinutes)
                   ? 'text-amber-600'
                   : quiz.settings.timerMode === 'per-question'
                   ? 'text-indigo-600'
                   : 'text-zinc-500'
               }`} />
-              <span>
+              <span className="whitespace-nowrap">
                 {quiz.settings.timerMode === 'whole-quiz' || (!quiz.settings.timerMode && quiz.settings.timeLimitMinutes)
                   ? `Timer: ${quiz.settings.timeLimitMinutes || 15}m`
                   : quiz.settings.timerMode === 'per-question'
@@ -384,7 +384,7 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
 
             <button
               onClick={() => setShowDeadlineModal(true)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 border text-xs font-semibold rounded-xl transition-all cursor-pointer ${
+              className={`h-8.5 flex items-center gap-1.5 px-3 border text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap shrink-0 select-none ${
                 quiz.settings.deadline
                   ? new Date(quiz.settings.deadline).getTime() < Date.now()
                     ? 'bg-rose-50 hover:bg-rose-100 border-rose-300 text-rose-900 shadow-2xs'
@@ -393,14 +393,14 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
               }`}
               title="Configure quiz submission deadline cutoff"
             >
-              <CalendarClock className={`w-3.5 h-3.5 ${
+              <CalendarClock className={`w-3.5 h-3.5 shrink-0 ${
                 quiz.settings.deadline
                   ? new Date(quiz.settings.deadline).getTime() < Date.now()
                     ? 'text-rose-600'
                     : 'text-emerald-600'
                   : 'text-zinc-500'
               }`} />
-              <span>
+              <span className="whitespace-nowrap">
                 {quiz.settings.deadline
                   ? new Date(quiz.settings.deadline).getTime() < Date.now()
                     ? 'Deadline: Expired'
@@ -411,26 +411,26 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
 
             <button
               onClick={() => setShowLivePreviewModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-800 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+              className="h-8.5 flex items-center gap-1.5 px-3 bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-800 text-xs font-semibold rounded-xl transition-colors cursor-pointer whitespace-nowrap shrink-0 select-none"
               title="Preview quiz with chosen theme and layout"
             >
-              <Eye className="w-3.5 h-3.5 text-zinc-600" />
-              <span>Live Preview</span>
+              <Eye className="w-3.5 h-3.5 text-zinc-600 shrink-0" />
+              <span className="whitespace-nowrap">Live Preview</span>
             </button>
 
             <button
               onClick={copyShareLink}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-800 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+              className="h-8.5 flex items-center gap-1.5 px-3 bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-800 text-xs font-semibold rounded-xl transition-colors cursor-pointer whitespace-nowrap shrink-0 select-none"
             >
               {copiedLink ? (
                 <>
-                  <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  <span className="text-emerald-700">Link Copied!</span>
+                  <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span className="text-emerald-700 whitespace-nowrap font-medium">Link Copied!</span>
                 </>
               ) : (
                 <>
-                  <Share2 className="w-3.5 h-3.5 text-zinc-600" />
-                  <span>Share Link</span>
+                  <Share2 className="w-3.5 h-3.5 text-zinc-600 shrink-0" />
+                  <span className="whitespace-nowrap">Share Link</span>
                 </>
               )}
             </button>
@@ -438,19 +438,19 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
             <button
               onClick={handleSave}
               disabled={isSaving}
-              className="flex items-center gap-1.5 px-4 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors disabled:opacity-60 cursor-pointer"
+              className="h-8.5 flex items-center gap-1.5 px-3.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-bold rounded-xl shadow-xs transition-colors disabled:opacity-60 cursor-pointer whitespace-nowrap shrink-0 select-none"
             >
               {isSaving ? (
-                <span className="inline-block animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent" />
+                <span className="inline-block animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent shrink-0" />
               ) : saveSuccess ? (
                 <>
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Saved!</span>
+                  <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span className="whitespace-nowrap">Saved!</span>
                 </>
               ) : (
                 <>
-                  <Save className="w-3.5 h-3.5" />
-                  <span>Save Quiz</span>
+                  <Save className="w-3.5 h-3.5 shrink-0" />
+                  <span className="whitespace-nowrap">Save Quiz</span>
                 </>
               )}
             </button>

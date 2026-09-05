@@ -106,37 +106,39 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-zinc-100 via-zinc-50 to-zinc-100 flex flex-col justify-center items-center p-4 sm:p-6 relative overflow-hidden">
-      {/* Subtle background decoration */}
-      <div className="absolute inset-0 pattern-grid opacity-30 pointer-events-none" />
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col justify-center items-center p-4 sm:p-6 relative overflow-hidden selection:bg-zinc-700 selection:text-white">
+      {/* Ambient dark gradient glow without harsh grid lines */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_-10%,rgba(120,119,198,0.15),rgba(9,9,11,1))]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_50%_110%,rgba(24,24,27,0.8),rgba(9,9,11,1))] pointer-events-none" />
 
       <div className="relative z-10 w-full max-w-md">
-        {/* Brand Header */}
-        <div className="text-center space-y-2 mb-6">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-zinc-900 text-white shadow-lg mx-auto mb-2 border border-zinc-700">
-            <Sparkles className="w-7 h-7 text-amber-400" />
+        {/* Brand Header with D•Q logo */}
+        <div className="text-center space-y-2.5 mb-6">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white shadow-2xl mx-auto mb-2 border border-zinc-700 p-1.5 hover:scale-105 transition-transform">
+            <img 
+              src="/dq_logo.jpg" 
+              alt="D•Q Logo" 
+              className="w-full h-full object-contain rounded-xl"
+              referrerPolicy="no-referrer"
+            />
           </div>
 
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-zinc-900 tracking-tight font-modern">
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight font-modern drop-shadow-sm">
             𝓓𝓪𝓶𝓸𝓷-𝓠𝓤𝓘𝓩
           </h1>
-
-          <p className="text-xs sm:text-sm text-zinc-600 max-w-sm mx-auto leading-relaxed">
-            Welcome to the aesthetic quiz & assessment studio. Sign in or create an account to access your creator dashboard.
-          </p>
         </div>
 
         {/* Auth Box */}
-        <div className="bg-white rounded-3xl shadow-xl border border-zinc-200/80 p-6 sm:p-8 space-y-5">
+        <div className="bg-zinc-900/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-zinc-800/90 p-6 sm:p-8 space-y-5 ring-1 ring-white/5">
           {/* Mode Switcher Tabs */}
-          <div className="grid grid-cols-2 p-1 bg-zinc-100 rounded-2xl text-xs font-bold text-zinc-600">
+          <div className="grid grid-cols-2 p-1 bg-zinc-950/80 rounded-2xl text-xs font-bold text-zinc-400 border border-zinc-800/80">
             <button
               type="button"
               onClick={() => { setIsSignUp(false); setError(null); }}
               className={`py-2 rounded-xl transition-all cursor-pointer ${
                 !isSignUp 
-                  ? 'bg-white text-zinc-900 shadow-xs' 
-                  : 'hover:text-zinc-900'
+                  ? 'bg-zinc-800 text-white shadow-xs' 
+                  : 'hover:text-zinc-200'
               }`}
             >
               Sign In
@@ -146,8 +148,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
               onClick={() => { setIsSignUp(true); setError(null); }}
               className={`py-2 rounded-xl transition-all cursor-pointer ${
                 isSignUp 
-                  ? 'bg-white text-zinc-900 shadow-xs' 
-                  : 'hover:text-zinc-900'
+                  ? 'bg-zinc-800 text-white shadow-xs' 
+                  : 'hover:text-zinc-200'
               }`}
             >
               Create Account
@@ -155,7 +157,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
           </div>
 
           {error && (
-            <div className="p-3 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-xl leading-relaxed">
+            <div className="p-3 text-xs text-rose-300 bg-rose-950/40 border border-rose-800/60 rounded-xl leading-relaxed">
               {error}
             </div>
           )}
@@ -165,7 +167,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
             type="button"
             onClick={handleGoogleSignIn}
             disabled={loading}
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white border border-zinc-300 hover:bg-zinc-50 active:bg-zinc-100 text-zinc-800 text-sm font-semibold rounded-2xl shadow-xs transition-all disabled:opacity-60 cursor-pointer hover:border-zinc-400"
+            className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-zinc-900 hover:bg-zinc-800/90 active:bg-zinc-850 text-white text-sm font-semibold rounded-2xl border border-zinc-700/80 shadow-xs transition-all disabled:opacity-60 cursor-pointer hover:border-zinc-500"
           >
             <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
               <path
@@ -189,8 +191,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
           </button>
 
           <div className="relative flex items-center justify-center my-3">
-            <div className="border-t border-zinc-200 w-full" />
-            <span className="bg-white px-3 text-[11px] text-zinc-400 uppercase tracking-wider font-semibold absolute">
+            <div className="border-t border-zinc-800 w-full" />
+            <span className="bg-zinc-900 px-3 text-[11px] text-zinc-500 uppercase tracking-wider font-semibold absolute">
               or email & password
             </span>
           </div>
@@ -199,46 +201,46 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
           <form onSubmit={handleEmailAuth} className="space-y-3.5">
             {isSignUp && (
               <div>
-                <label className="block text-xs font-semibold text-zinc-700 mb-1">
+                <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
                   Full Name / Creator Name
                 </label>
                 <div className="relative">
-                  <UserIcon className="w-4 h-4 text-zinc-400 absolute left-3.5 top-3.5" />
+                  <UserIcon className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3.5" />
                   <input
                     type="text"
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="e.g. Damon Rivera"
-                    className="w-full pl-10 pr-4 py-2.5 text-sm border border-zinc-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-zinc-900 bg-white"
+                    className="w-full pl-10 pr-4 py-2.5 text-sm bg-zinc-950/70 border border-zinc-800 focus:border-zinc-500 focus:ring-1 focus:ring-zinc-400 text-white placeholder-zinc-500 rounded-xl focus:outline-none transition-colors"
                   />
                 </div>
               </div>
             )}
 
             <div>
-              <label className="block text-xs font-semibold text-zinc-700 mb-1">
+              <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
                 Email address
               </label>
               <div className="relative">
-                <Mail className="w-4 h-4 text-zinc-400 absolute left-3.5 top-3.5" />
+                <Mail className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3.5" />
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="creator@example.com"
-                  className="w-full pl-10 pr-4 py-2.5 text-sm border border-zinc-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-zinc-900 bg-white"
+                  className="w-full pl-10 pr-4 py-2.5 text-sm bg-zinc-950/70 border border-zinc-800 focus:border-zinc-500 focus:ring-1 focus:ring-zinc-400 text-white placeholder-zinc-500 rounded-xl focus:outline-none transition-colors"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-zinc-700 mb-1">
+              <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
                 Password
               </label>
               <div className="relative">
-                <Lock className="w-4 h-4 text-zinc-400 absolute left-3.5 top-3.5" />
+                <Lock className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3.5" />
                 <input
                   type="password"
                   required
@@ -246,7 +248,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="At least 6 characters"
-                  className="w-full pl-10 pr-4 py-2.5 text-sm border border-zinc-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-zinc-900 bg-white"
+                  className="w-full pl-10 pr-4 py-2.5 text-sm bg-zinc-950/70 border border-zinc-800 focus:border-zinc-500 focus:ring-1 focus:ring-zinc-400 text-white placeholder-zinc-500 rounded-xl focus:outline-none transition-colors"
                 />
               </div>
             </div>
@@ -254,10 +256,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 bg-zinc-900 hover:bg-zinc-800 active:bg-zinc-950 text-white text-sm font-bold rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer mt-2"
+              className="w-full py-3 px-4 bg-white hover:bg-zinc-200 active:bg-zinc-300 text-zinc-950 text-sm font-bold rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-60 cursor-pointer mt-2"
             >
               {loading ? (
-                <span className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                <span className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-zinc-950 border-t-transparent" />
               ) : (
                 <>
                   <span>{isSignUp ? 'Create 𝓓𝓪𝓶𝓸𝓷-𝓠𝓤𝓘𝓩 Account' : 'Sign In to 𝓓𝓪𝓶𝓸𝓷-𝓠𝓤𝓘𝓩'}</span>
@@ -268,22 +270,16 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
           </form>
 
           {/* Quick guest fallback */}
-          <div className="pt-2 border-t border-zinc-100 text-center">
+          <div className="pt-2 border-t border-zinc-800/80 text-center">
             <button
               type="button"
               onClick={handleGuestSignIn}
               disabled={loading}
-              className="text-xs text-zinc-500 hover:text-zinc-900 hover:underline inline-flex items-center gap-1 cursor-pointer"
+              className="text-xs text-zinc-400 hover:text-white hover:underline inline-flex items-center gap-1 cursor-pointer transition-colors"
             >
               <span>Or continue with Instant Guest Creator Mode</span>
             </button>
           </div>
-        </div>
-
-        {/* Security badge */}
-        <div className="text-center mt-4 flex items-center justify-center gap-1.5 text-xs text-zinc-400">
-          <ShieldCheck className="w-4 h-4 text-emerald-600" />
-          <span>Accounts & quizzes secured in your personal Firebase space</span>
         </div>
       </div>
     </div>

@@ -296,7 +296,7 @@ export async function getQuizResponses(quizId: string): Promise<QuizResponse[]> 
 }
 
 // Seed up to 3 aesthetic starter templates without ever exceeding MAX_QUIZZES_PER_USER (15)
-export async function seedStarterQuizzes(userId: string, userEmail: string): Promise<Quiz[]> {
+export async function seedStarterQuizzes(userId: string, userEmail: string, creatorName?: string): Promise<Quiz[]> {
   try {
     const existing = await getQuizzesByUser(userId);
     const slotsRemaining = MAX_QUIZZES_PER_USER - existing.length;
@@ -316,6 +316,7 @@ export async function seedStarterQuizzes(userId: string, userEmail: string): Pro
         id: docRef.id,
         creatorId: userId,
         creatorEmail: userEmail,
+        creatorName: creatorName || 'Creator',
         customSlug: generateDefaultQuizSlug(template.title),
         questions: template.questions.map((q) => ({
           ...q,

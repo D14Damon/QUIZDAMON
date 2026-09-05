@@ -267,3 +267,25 @@ export async function copyResponsesForSpreadsheet(quiz: Quiz, responses: QuizRes
     return false;
   }
 }
+
+/**
+ * Safely extracts the public display name of the quiz creator.
+ * Strictly guarantees that user emails (e.g. @gmail.com) are NEVER exposed to respondents.
+ */
+export function getCreatorDisplayName(quiz?: { creatorName?: string; creatorEmail?: string } | null): string {
+  if (!quiz) return 'Creator';
+  if (quiz.creatorName && quiz.creatorName.trim()) {
+    const raw = quiz.creatorName.trim();
+    if (!raw.includes('@')) {
+      return raw;
+    }
+    // If creatorName was saved with an email address, extract clean username
+    const prefix = raw.split('@')[0].replace(/[._-]/g, ' ').trim();
+    return prefix ? prefix.charAt(0).toUpperCase() + prefix.slice(1) : 'Creator';
+  }
+  if (quiz.creatorEmail && quiz.creatorEmail.trim()) {
+    const prefix = quiz.creatorEmail.split('@')[0].replace(/[._-]/g, ' ').trim();
+    return prefix ? prefix.charAt(0).toUpperCase() + prefix.slice(1) : 'Creator';
+  }
+  return 'Creator';
+}

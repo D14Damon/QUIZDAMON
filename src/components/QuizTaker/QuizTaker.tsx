@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Quiz, Question } from '../../types';
-import { calculateQuizResults } from '../../lib/quizHelpers';
+import { calculateQuizResults, getCreatorDisplayName } from '../../lib/quizHelpers';
 import { submitQuizResponse, checkEmailAlreadySubmitted } from '../../lib/quizDbService';
 import { getAnimationConfig } from '../../lib/animationVariants';
 import confetti from 'canvas-confetti';
@@ -23,7 +23,8 @@ import {
   Lock,
   Loader2,
   CalendarClock,
-  CalendarX
+  CalendarX,
+  User
 } from 'lucide-react';
 
 interface QuizTakerProps {
@@ -92,6 +93,8 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
     if (!isDeadlineValid || !deadlineDate) return false;
     return deadlineDate.getTime() <= Date.now();
   });
+
+  const creatorDisplayName = getCreatorDisplayName(quiz);
 
   const formatRemainingTime = (date: Date | null) => {
     if (!date) return '';
@@ -768,6 +771,11 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
           <span className="text-xs font-semibold uppercase tracking-wider opacity-60">
             {quiz.title}
           </span>
+          <span className="text-xs opacity-30">•</span>
+          <span className="text-xs font-medium opacity-60 flex items-center gap-1">
+            <User className="w-3 h-3 opacity-70" />
+            {creatorDisplayName}
+          </span>
         </div>
 
         {/* Countdown timer pill */}
@@ -847,6 +855,10 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                 <p className="text-sm opacity-75 max-w-md mx-auto leading-relaxed">
                   {quiz.settings.successMessage || 'Thank you for taking the time to complete this quiz.'}
                 </p>
+                <div className="flex items-center justify-center gap-1.5 text-xs opacity-60 pt-1">
+                  <User className="w-3.5 h-3.5" />
+                  <span>Created by <strong className="font-semibold">{creatorDisplayName}</strong></span>
+                </div>
               </div>
 
               {/* Time Expired Notice */}
@@ -976,15 +988,30 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
               }}
             >
               <div className="space-y-3">
-                <span 
-                  className="inline-block px-3.5 py-1 text-xs font-bold rounded-full"
-                  style={{
-                    backgroundColor: `${quiz.theme.primaryColor}20`,
-                    color: quiz.theme.primaryColor,
-                  }}
-                >
-                  {quiz.questions.length} {quiz.questions.length === 1 ? 'Question' : 'Questions'}
-                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span 
+                    className="inline-block px-3.5 py-1 text-xs font-bold rounded-full"
+                    style={{
+                      backgroundColor: `${quiz.theme.primaryColor}20`,
+                      color: quiz.theme.primaryColor,
+                    }}
+                  >
+                    {quiz.questions.length} {quiz.questions.length === 1 ? 'Question' : 'Questions'}
+                  </span>
+
+                  <span 
+                    className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-full border shadow-2xs"
+                    style={{
+                      borderColor: quiz.theme.borderColor,
+                      backgroundColor: `${quiz.theme.primaryColor}10`,
+                      color: quiz.theme.textColor,
+                    }}
+                  >
+                    <User className="w-3.5 h-3.5 opacity-70 shrink-0" />
+                    <span>Created by <strong className="font-bold">{creatorDisplayName}</strong></span>
+                  </span>
+                </div>
+
                 <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight">
                   {quiz.title || 'Welcome to the Quiz'}
                 </h1>
@@ -1470,16 +1497,31 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                   borderColor: quiz.theme.borderColor,
                 }}
               >
-                <div className="flex items-center justify-between">
-                  <span 
-                    className="inline-block px-3 py-1 text-xs font-bold rounded-full"
-                    style={{
-                      backgroundColor: `${quiz.theme.primaryColor}20`,
-                      color: quiz.theme.primaryColor,
-                    }}
-                  >
-                    {quiz.questions.length} {quiz.questions.length === 1 ? 'Question' : 'Questions'}
-                  </span>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span 
+                      className="inline-block px-3 py-1 text-xs font-bold rounded-full"
+                      style={{
+                        backgroundColor: `${quiz.theme.primaryColor}20`,
+                        color: quiz.theme.primaryColor,
+                      }}
+                    >
+                      {quiz.questions.length} {quiz.questions.length === 1 ? 'Question' : 'Questions'}
+                    </span>
+
+                    <span 
+                      className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-full border shadow-2xs"
+                      style={{
+                        borderColor: quiz.theme.borderColor,
+                        backgroundColor: `${quiz.theme.primaryColor}10`,
+                        color: quiz.theme.textColor,
+                      }}
+                    >
+                      <User className="w-3.5 h-3.5 opacity-70 shrink-0" />
+                      <span>Created by <strong className="font-bold">{creatorDisplayName}</strong></span>
+                    </span>
+                  </div>
+
                   {quiz.settings.limitOneSubmission !== false && (
                     <span className="text-[11px] text-amber-600 font-semibold flex items-center gap-1">
                       <Lock className="w-3 h-3" /> 1 submit per user

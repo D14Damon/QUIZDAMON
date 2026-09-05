@@ -238,7 +238,7 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
         ...quiz,
         creatorId: userId,
         creatorEmail: userEmail,
-        creatorName: creatorName || quiz.creatorName,
+        creatorName: (quiz.creatorName && quiz.creatorName.trim()) ? quiz.creatorName.trim() : (creatorName || 'Creator'),
       });
       setQuiz((prev) => ({ ...prev, id: savedId }));
       setSaveSuccess(true);
@@ -264,7 +264,7 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
           ...quiz,
           creatorId: userId,
           creatorEmail: userEmail,
-          creatorName: creatorName || quiz.creatorName,
+          creatorName: (quiz.creatorName && quiz.creatorName.trim()) ? quiz.creatorName.trim() : (creatorName || 'Creator'),
         });
         currentQuizId = savedId;
         setQuiz((prev) => ({ ...prev, id: savedId }));
@@ -1102,6 +1102,22 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
                     placeholder="Provide context or instructions for respondents..."
                     className="w-full text-xs text-zinc-700 border border-zinc-200 rounded-xl p-3 focus:border-zinc-900 focus:outline-none resize-none"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-700 mb-1">
+                    Creator Display Name (Visible to respondents)
+                  </label>
+                  <input
+                    type="text"
+                    value={quiz.creatorName || ''}
+                    onChange={(e) => updateQuizField('creatorName', e.target.value)}
+                    placeholder="e.g. Kyle, Damon Rivera, Mr. Anderson..."
+                    className="w-full text-sm font-semibold text-zinc-900 border border-zinc-200 rounded-xl p-3 focus:border-zinc-900 focus:outline-none"
+                  />
+                  <p className="text-[11px] text-zinc-500 mt-1">
+                    Shown when people open your quiz link. Your Gmail address is strictly kept private and never shown.
+                  </p>
                 </div>
               </div>
             </div>

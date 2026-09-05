@@ -122,7 +122,14 @@ export default function App() {
       return;
     }
     setQuizzesLoading(true);
-    const created = await seedStarterQuizzes(user.uid, user.email || 'creator@damonquiz.local');
+    const creatorDisplayName = (profile?.displayName && !profile.displayName.includes('@'))
+      ? profile.displayName
+      : (user.displayName && !user.displayName.includes('@'))
+        ? user.displayName
+        : user.email 
+          ? user.email.split('@')[0]
+          : 'Creator';
+    const created = await seedStarterQuizzes(user.uid, user.email || 'creator@damonquiz.local', creatorDisplayName);
     setQuizzes((prev) => [...created, ...prev]);
     setQuizzesLoading(false);
   };
@@ -138,6 +145,14 @@ export default function App() {
     const template = templateIndex !== undefined ? STARTER_TEMPLATES[templateIndex] : null;
     const initialTitle = template ? template.title : 'New Aesthetic Quiz';
 
+    const creatorDisplayName = (profile?.displayName && !profile.displayName.includes('@'))
+      ? profile.displayName
+      : (user.displayName && !user.displayName.includes('@'))
+        ? user.displayName
+        : user.email 
+          ? user.email.split('@')[0]
+          : 'Creator';
+
     const blankQuiz: Quiz = {
       id: '',
       title: initialTitle,
@@ -145,7 +160,7 @@ export default function App() {
       description: template ? template.description : 'Welcome to this quiz. Please answer the questions carefully.',
       creatorId: user.uid,
       creatorEmail: user.email || '',
-      creatorName: profile?.displayName || user.displayName || 'Creator',
+      creatorName: creatorDisplayName,
       category: template?.category || 'Quiz',
       layout: template ? template.layout : 'step-by-step',
       theme: template ? { ...template.theme } : { ...THEME_PRESETS[0] },

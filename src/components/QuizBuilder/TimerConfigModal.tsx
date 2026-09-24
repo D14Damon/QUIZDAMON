@@ -65,7 +65,7 @@ export const TimerConfigModal: React.FC<TimerConfigModalProps> = ({
       onClick={onClose}
     >
       <div 
-        className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl border border-zinc-200 space-y-6 animate-in zoom-in-95"
+        className="bg-white rounded-3xl max-w-xl w-full max-h-[90dvh] overflow-y-auto p-5 sm:p-8 shadow-2xl border border-zinc-200 space-y-6 animate-in zoom-in-95"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

@@ -1,4 +1,4 @@
-import { QuizTheme, Quiz, LayoutType } from '../types';
+import { QuizTheme, Quiz, LayoutType, Question } from '../types';
 
 export const THEME_PRESETS: QuizTheme[] = [
   {
@@ -183,6 +183,22 @@ export const THEME_PRESETS: QuizTheme[] = [
   },
 ];
 
+export const createDefaultBlankQuestion = (id = "q1"): Question => ({
+  id,
+  type: "multiple-choice",
+  title: "",
+  description: "",
+  required: true,
+  points: 10,
+  options: [
+    { id: "opt_1", text: "", isCorrect: true },
+    { id: "opt_2", text: "", isCorrect: false },
+    { id: "opt_3", text: "", isCorrect: false },
+    { id: "opt_4", text: "", isCorrect: false },
+  ],
+  explanation: "",
+});
+
 export const STARTER_TEMPLATES: Omit<Quiz, 'id' | 'creatorId' | 'creatorEmail' | 'createdAt' | 'updatedAt' | 'responseCount'>[] = [
   // 1. Design Systems Quiz
   {
@@ -210,67 +226,7 @@ export const STARTER_TEMPLATES: Omit<Quiz, 'id' | 'creatorId' | 'creatorEmail' |
       successMessage: 'Thank you for testing your design knowledge. Review your score and detailed explanations below.',
     },
     status: 'published',
-    questions: [
-      {
-        id: 'q1',
-        type: 'multiple-choice',
-        title: 'Which typographic scale ratio creates a dramatic editorial contrast?',
-        description: 'Consider the visual step between heading and body copy.',
-        required: true,
-        points: 10,
-        options: [
-          { id: 'opt1', text: 'Major Second (1.125)', isCorrect: false },
-          { id: 'opt2', text: 'Perfect Fourth (1.333) or Golden Ratio (1.618)', isCorrect: true },
-          { id: 'opt3', text: 'Minor Second (1.067)', isCorrect: false },
-        ],
-        explanation: 'Higher ratios like 1.333+ establish strong, noticeable contrast suitable for editorial headlines.',
-      },
-      {
-        id: 'q2',
-        type: 'true-false',
-        title: 'Outer container padding should be equal to or greater than the inner spacing between child items.',
-        required: true,
-        points: 10,
-        options: [
-          { id: 'tf-true', text: 'True', isCorrect: true },
-          { id: 'tf-false', text: 'False', isCorrect: false },
-        ],
-        explanation: 'According to Gestalt spatial principles, outer framing must enclose inner elements with balanced or greater cushion.',
-      },
-      {
-        id: 'q3',
-        type: 'multiple-select',
-        title: 'Which features characterize the "Step-by-Step" presentation style?',
-        description: 'Select all that apply.',
-        required: true,
-        points: 15,
-        options: [
-          { id: 'ms1', text: 'Single question focus to avoid cognitive overload', isCorrect: true },
-          { id: 'ms2', text: 'Keyboard navigation shortcuts (e.g. Enter to progress)', isCorrect: true },
-          { id: 'ms3', text: 'Infinite vertical scrolling on one page', isCorrect: false },
-          { id: 'ms4', text: 'Progress percentage tracking', isCorrect: true },
-        ],
-        explanation: 'Step-by-step layouts maximize focus with focused slides and fast keyboard navigation.',
-      },
-      {
-        id: 'q4',
-        type: 'rating-stars',
-        title: 'How would you rate the importance of dark/light theme options for accessibility?',
-        required: false,
-        points: 0,
-        minRating: 1,
-        maxRating: 5,
-        ratingLabels: { low: 'Optional', high: 'Crucial' },
-      },
-      {
-        id: 'q5',
-        type: 'short-text',
-        title: 'What is your favorite modern CSS feature released recently?',
-        description: 'E.g., Subgrid, Container Queries, Cascade Layers, color-mix().',
-        required: false,
-        points: 5,
-      },
-    ],
+    questions: [createDefaultBlankQuestion()],
   },
 
   // 2. Editorial Gazette Humanities & Literary Quiz
@@ -299,59 +255,7 @@ export const STARTER_TEMPLATES: Omit<Quiz, 'id' | 'creatorId' | 'creatorEmail' |
       successMessage: 'Your submission has been evaluated. Review your literary score and historical annotations below.',
     },
     status: 'published',
-    questions: [
-      {
-        id: 'eg1',
-        type: 'multiple-choice',
-        title: 'Which literary term describes the attribution of human emotions or responses to inanimate things or nature?',
-        required: true,
-        points: 10,
-        options: [
-          { id: 'lit1', text: 'Pathetic Fallacy', isCorrect: true },
-          { id: 'lit2', text: 'Synecdoche', isCorrect: false },
-          { id: 'lit3', text: 'Chiasmus', isCorrect: false },
-          { id: 'lit4', text: 'Anaphora', isCorrect: false },
-        ],
-        explanation: 'Coined by John Ruskin in 1856, pathetic fallacy specifically refers to portraying inanimate nature with human feelings.',
-      },
-      {
-        id: 'eg2',
-        type: 'true-false',
-        title: 'An em-dash (—) without surrounding spaces is standard typographic style in traditional American editorial publishing.',
-        required: true,
-        points: 10,
-        options: [
-          { id: 'dash-true', text: 'True (Chicago Manual of Style)', isCorrect: true },
-          { id: 'dash-false', text: 'False (AP Style requires spaces)', isCorrect: false },
-        ],
-        explanation: 'The Chicago Manual of Style prescribes closed em-dashes without surrounding spaces to establish emphatic pauses.',
-      },
-      {
-        id: 'eg3',
-        type: 'multiple-select',
-        title: 'Which of the following authors wrote during the English Romanticism era?',
-        description: 'Select all that apply.',
-        required: true,
-        points: 15,
-        options: [
-          { id: 'rom1', text: 'Mary Shelley', isCorrect: true },
-          { id: 'rom2', text: 'William Wordsworth', isCorrect: true },
-          { id: 'rom3', text: 'Virginia Woolf', isCorrect: false },
-          { id: 'rom4', text: 'John Keats', isCorrect: true },
-        ],
-        explanation: 'Shelley, Wordsworth, and Keats were core figures of Romanticism; Woolf was a pioneer of Modernist stream-of-consciousness.',
-      },
-      {
-        id: 'eg4',
-        type: 'rating-stars',
-        title: 'How would you rate the clarity and elegance of classical serif typefaces for long-form reading?',
-        required: false,
-        points: 0,
-        minRating: 1,
-        maxRating: 5,
-        ratingLabels: { low: 'Distracting', high: 'Ideal' },
-      },
-    ],
+    questions: [createDefaultBlankQuestion()],
   },
 
   // 3. Botanical Sage Ecosystems & Biology Quiz
@@ -380,49 +284,7 @@ export const STARTER_TEMPLATES: Omit<Quiz, 'id' | 'creatorId' | 'creatorEmail' |
       successMessage: 'Well done! Cultivating scientific curiosity nurtures our natural environment.',
     },
     status: 'published',
-    questions: [
-      {
-        id: 'bs1',
-        type: 'multiple-choice',
-        title: 'Which specialized plant vascular tissue is primarily responsible for transporting water and dissolved minerals from roots to leaves?',
-        required: true,
-        points: 10,
-        options: [
-          { id: 'vt1', text: 'Xylem', isCorrect: true },
-          { id: 'vt2', text: 'Phloem', isCorrect: false },
-          { id: 'vt3', text: 'Cambium', isCorrect: false },
-          { id: 'vt4', text: 'Stomata', isCorrect: false },
-        ],
-        explanation: 'Xylem vessels conduct water upward via transpiration pull, while phloem distributes photosynthetic sugars.',
-      },
-      {
-        id: 'bs2',
-        type: 'true-false',
-        title: 'Mycorrhizal fungi form mutualistic symbiotic networks with plant roots to enhance nutrient uptake.',
-        required: true,
-        points: 10,
-        options: [
-          { id: 'my-true', text: 'True', isCorrect: true },
-          { id: 'my-false', text: 'False', isCorrect: false },
-        ],
-        explanation: 'Mycorrhizae exchange soil phosphorus and water for carbohydrates synthesized by the plant.',
-      },
-      {
-        id: 'bs3',
-        type: 'multiple-select',
-        title: 'Which of the following are recognized abiotic factors in an ecosystem?',
-        description: 'Select all non-living environmental determinants.',
-        required: true,
-        points: 15,
-        options: [
-          { id: 'ab1', text: 'Solar irradiance & photoperiod', isCorrect: true },
-          { id: 'ab2', text: 'Soil pH and mineral salinity', isCorrect: true },
-          { id: 'ab3', text: 'Decomposer bacteria', isCorrect: false },
-          { id: 'ab4', text: 'Ambient precipitation & humidity', isCorrect: true },
-        ],
-        explanation: 'Abiotic elements are physical/chemical non-living components; decomposers are biotic organisms.',
-      },
-    ],
+    questions: [createDefaultBlankQuestion()],
   },
 
   // 4. Midnight Obsidian Tech & Cloud Architecture Quiz
@@ -451,60 +313,7 @@ export const STARTER_TEMPLATES: Omit<Quiz, 'id' | 'creatorId' | 'creatorEmail' |
       successMessage: 'Great work! Check your score breakdown and how you compare with standard architectural benchmarks.',
     },
     status: 'published',
-    questions: [
-      {
-        id: 'tq1',
-        type: 'multiple-choice',
-        title: 'What is the primary benefit of Firestore real-time snapshots over traditional polling?',
-        required: true,
-        points: 10,
-        options: [
-          { id: 'to1', text: 'WebSocket-based push listener updates immediately on document change', isCorrect: true },
-          { id: 'to2', text: 'It requires continuous HTTP GET requests every 500ms', isCorrect: false },
-          { id: 'to3', text: 'It stores all data directly in browser cookies', isCorrect: false },
-        ],
-        explanation: 'Firestore uses bi-directional streaming channels to deliver document mutations with minimal latency and lower overhead.',
-      },
-      {
-        id: 'tq2',
-        type: 'true-false',
-        title: 'Vite leverages native ES Modules in development for near-instant cold server start.',
-        required: true,
-        points: 10,
-        options: [
-          { id: 'tt1', text: 'True', isCorrect: true },
-          { id: 'tt2', text: 'False', isCorrect: false },
-        ],
-        explanation: 'Vite transforms modules on-demand over native ESM rather than bundling the entire dependency graph upfront.',
-      },
-      {
-        id: 'tq3',
-        type: 'multiple-choice',
-        title: 'Which HTTP header is standard for passing client authentication tokens to secured endpoints?',
-        required: true,
-        points: 10,
-        options: [
-          { id: 'th1', text: 'Authorization: Bearer <token>', isCorrect: true },
-          { id: 'th2', text: 'Authenticate-Cookie: <token>', isCorrect: false },
-          { id: 'th3', text: 'X-User-Secret: <token>', isCorrect: false },
-        ],
-      },
-      {
-        id: 'tq4',
-        type: 'multiple-select',
-        title: 'Which HTTP status codes indicate a client-side error?',
-        description: 'Select all that apply.',
-        required: true,
-        points: 10,
-        options: [
-          { id: 'sc1', text: '400 Bad Request', isCorrect: true },
-          { id: 'sc2', text: '403 Forbidden', isCorrect: true },
-          { id: 'sc3', text: '502 Bad Gateway', isCorrect: false },
-          { id: 'sc4', text: '404 Not Found', isCorrect: true },
-        ],
-        explanation: '4xx codes denote client error conditions, whereas 5xx codes reflect upstream or server errors.',
-      },
-    ],
+    questions: [createDefaultBlankQuestion()],
   },
 
   // 5. Sunset Terracotta Product Discovery & Sentiment Form
@@ -533,63 +342,7 @@ export const STARTER_TEMPLATES: Omit<Quiz, 'id' | 'creatorId' | 'creatorEmail' |
       successMessage: 'We deeply appreciate your candid thoughts. Your answers help us build a more thoughtful experience.',
     },
     status: 'published',
-    questions: [
-      {
-        id: 'fe1',
-        type: 'opinion-scale',
-        title: 'How intuitive did you find our onboarding flow and initial interface?',
-        description: '1 indicates extremely difficult, 10 indicates delightfully seamless.',
-        required: true,
-        points: 0,
-        minRating: 1,
-        maxRating: 10,
-        ratingLabels: { low: 'Difficult', high: 'Effortless' },
-      },
-      {
-        id: 'fe2',
-        type: 'multiple-choice',
-        title: 'How often do you plan to create interactive quizzes or forms with this application?',
-        required: true,
-        points: 0,
-        options: [
-          { id: 'f1', text: 'Daily for business operations or classroom teaching' },
-          { id: 'f2', text: 'Weekly for team training, quizzes, or workshops' },
-          { id: 'f3', text: 'Monthly or occasionally for community events' },
-          { id: 'f4', text: 'Just exploring for personal projects or hobbies' },
-        ],
-      },
-      {
-        id: 'fe3',
-        type: 'multiple-select',
-        title: 'Which capabilities matter the most to your workflow?',
-        description: 'Select all features you rely on.',
-        required: true,
-        points: 0,
-        options: [
-          { id: 'cap1', text: 'Strict quiz timer & automated deadline cutoffs' },
-          { id: 'cap2', text: 'Custom shareable link URLs' },
-          { id: 'cap3', text: 'Unique template animations and themes' },
-          { id: 'cap4', text: 'Instant CSV / Spreadsheet export' },
-        ],
-      },
-      {
-        id: 'fe4',
-        type: 'rating-stars',
-        title: 'Overall rating of the visual design and speed',
-        required: true,
-        points: 0,
-        minRating: 1,
-        maxRating: 5,
-        ratingLabels: { low: 'Needs Work', high: 'Outstanding' },
-      },
-      {
-        id: 'fe5',
-        type: 'long-text',
-        title: 'What is one customization feature that would make this tool indispensable for you?',
-        required: false,
-        points: 0,
-      },
-    ],
+    questions: [createDefaultBlankQuestion()],
   },
 
   // 6. Cyber Horizon General Science Trivia Challenge
@@ -618,63 +371,7 @@ export const STARTER_TEMPLATES: Omit<Quiz, 'id' | 'creatorId' | 'creatorEmail' |
       successMessage: 'Challenge concluded! See your final score, check where you placed, and review answers below.',
     },
     status: 'published',
-    questions: [
-      {
-        id: 'tr1',
-        type: 'multiple-choice',
-        title: 'Which planet in our solar system has the highest average surface temperature?',
-        required: true,
-        points: 15,
-        options: [
-          { id: 'p1', text: 'Mercury (closest to the Sun)', isCorrect: false },
-          { id: 'p2', text: 'Venus (dense greenhouse atmosphere)', isCorrect: true },
-          { id: 'p3', text: 'Mars (thin atmosphere)', isCorrect: false },
-          { id: 'p4', text: 'Jupiter (gas giant)', isCorrect: false },
-        ],
-        explanation: 'Venus has an extreme runaway greenhouse effect with a thick CO2 atmosphere, creating temperatures exceeding 465°C.',
-      },
-      {
-        id: 'tr2',
-        type: 'true-false',
-        title: 'Light travels faster in a diamond than it does through open vacuum space.',
-        required: true,
-        points: 10,
-        options: [
-          { id: 'dia-true', text: 'True', isCorrect: false },
-          { id: 'dia-false', text: 'False', isCorrect: true },
-        ],
-        explanation: 'Light travels at maximum speed in a vacuum (~300,000 km/s) and slows down significantly inside dense media like diamond.',
-      },
-      {
-        id: 'tr3',
-        type: 'multiple-choice',
-        title: 'What is the chemical symbol for the element Gold?',
-        required: true,
-        points: 10,
-        options: [
-          { id: 'g1', text: 'Au', isCorrect: true },
-          { id: 'g2', text: 'Ag', isCorrect: false },
-          { id: 'g3', text: 'Fe', isCorrect: false },
-          { id: 'g4', text: 'Gd', isCorrect: false },
-        ],
-        explanation: 'Au derives from the Latin word "aurum", meaning shining dawn.',
-      },
-      {
-        id: 'tr4',
-        type: 'multiple-select',
-        title: 'Which of the following are primary renewable energy sources?',
-        description: 'Select all that apply.',
-        required: true,
-        points: 15,
-        options: [
-          { id: 'rn1', text: 'Solar photovoltaic energy', isCorrect: true },
-          { id: 'rn2', text: 'Wind turbine energy', isCorrect: true },
-          { id: 'rn3', text: 'Coal thermal combustion', isCorrect: false },
-          { id: 'rn4', text: 'Hydroelectric kinetic power', isCorrect: true },
-        ],
-        explanation: 'Solar, wind, and hydroelectric sources replenish naturally without consuming finite fossil fuels.',
-      },
-    ],
+    questions: [createDefaultBlankQuestion()],
   },
 
   // 7. Lavender Mist Team Culture & Wellness Pulse
@@ -703,59 +400,7 @@ export const STARTER_TEMPLATES: Omit<Quiz, 'id' | 'creatorId' | 'creatorEmail' |
       successMessage: 'Thank you for taking the time to share your perspective. Leadership reviews these insights every quarter.',
     },
     status: 'published',
-    questions: [
-      {
-        id: 'ee1',
-        type: 'opinion-scale',
-        title: 'How likely are you to recommend our company as a great place to work to a friend or colleague?',
-        description: 'Standard employee Net Promoter Score (eNPS) metric.',
-        required: true,
-        points: 0,
-        minRating: 1,
-        maxRating: 10,
-        ratingLabels: { low: 'Not Likely', high: 'Extremely Likely' },
-      },
-      {
-        id: 'ee2',
-        type: 'rating-stars',
-        title: 'Work-life harmony and manageable workload balance',
-        required: true,
-        points: 0,
-        minRating: 1,
-        maxRating: 5,
-        ratingLabels: { low: 'Burnout Risk', high: 'Healthy Balance' },
-      },
-      {
-        id: 'ee3',
-        type: 'true-false',
-        title: 'I feel comfortable speaking up, asking questions, and proposing new ideas within my immediate team.',
-        required: true,
-        points: 0,
-        options: [
-          { id: 'ee-true', text: 'True' },
-          { id: 'ee-false', text: 'False' },
-        ],
-      },
-      {
-        id: 'ee4',
-        type: 'multiple-choice',
-        title: 'How clear are your personal professional growth and advancement pathways for the next 12 months?',
-        required: true,
-        points: 0,
-        options: [
-          { id: 'cg1', text: 'Very clear - I have defined milestones and mentorship' },
-          { id: 'cg2', text: 'Somewhat clear - but need more regular feedback' },
-          { id: 'cg3', text: 'Unclear - I am unsure what is needed to advance' },
-        ],
-      },
-      {
-        id: 'ee5',
-        type: 'long-text',
-        title: 'What is one concrete change leadership could implement to improve our everyday work culture?',
-        required: false,
-        points: 0,
-      },
-    ],
+    questions: [createDefaultBlankQuestion()],
   },
 
   // 8. Neo-Brutalism Pop Trivia & Speed Challenge
@@ -782,49 +427,7 @@ export const STARTER_TEMPLATES: Omit<Quiz, 'id' | 'creatorId' | 'creatorEmail' |
       successMessage: 'You survived the high-intensity pop culture sprint. View your standing below!',
     },
     status: 'published',
-    questions: [
-      {
-        id: 'nb1',
-        type: 'multiple-choice',
-        title: 'In which year did the World Wide Web officially become available to the general public?',
-        required: true,
-        points: 20,
-        options: [
-          { id: 'w1', text: '1989 (Tim Berners-Lee proposal)', isCorrect: false },
-          { id: 'w2', text: '1991 (CERN public announcement)', isCorrect: true },
-          { id: 'w3', text: '1995 (Launch of Windows 95)', isCorrect: false },
-          { id: 'w4', text: '1998 (Founding of Google)', isCorrect: false },
-        ],
-        explanation: 'CERN made the World Wide Web project publicly accessible outside high-energy physics in August 1991.',
-      },
-      {
-        id: 'nb2',
-        type: 'true-false',
-        title: 'The term "Neo-Brutalism" in UI design is characterized by raw black borders, vibrant acid colors, and hard shadows.',
-        required: true,
-        points: 15,
-        options: [
-          { id: 'nb-t', text: 'True', isCorrect: true },
-          { id: 'nb-f', text: 'False', isCorrect: false },
-        ],
-        explanation: 'Neo-Brutalism rejects subtle gradients in favor of intentional bold outlines, saturated primaries, and stark drop-shadows.',
-      },
-      {
-        id: 'nb3',
-        type: 'multiple-select',
-        title: 'Which of the following video game consoles were released in the 1990s?',
-        description: 'Select all 90s gaming icons.',
-        required: true,
-        points: 20,
-        options: [
-          { id: 'vg1', text: 'Sony PlayStation (1994)', isCorrect: true },
-          { id: 'vg2', text: 'Nintendo 64 (1996)', isCorrect: true },
-          { id: 'vg3', text: 'Sega Dreamcast (1998)', isCorrect: true },
-          { id: 'vg4', text: 'Microsoft Xbox (2001)', isCorrect: false },
-        ],
-        explanation: 'PlayStation, N64, and Dreamcast all launched in the 1990s; Xbox was unveiled in late 2001.',
-      },
-    ],
+    questions: [createDefaultBlankQuestion()],
   },
 
   // 9. Monolith Gold Executive Creative Brief Form
@@ -853,56 +456,7 @@ export const STARTER_TEMPLATES: Omit<Quiz, 'id' | 'creatorId' | 'creatorEmail' |
       successMessage: 'We have received your project specifications. Our strategy team will assemble a preliminary proposal within 48 hours.',
     },
     status: 'published',
-    questions: [
-      {
-        id: 'pi1',
-        type: 'multiple-select',
-        title: 'What core services does your project require?',
-        description: 'Select all disciplines that apply to your initiative.',
-        required: true,
-        points: 0,
-        options: [
-          { id: 'srv1', text: 'Brand Identity & Visual Guidelines' },
-          { id: 'srv2', text: 'Web Application Design & UI/UX' },
-          { id: 'srv3', text: 'Full-Stack Frontend & Database Engineering' },
-          { id: 'srv4', text: 'Interactive Design Systems & Component Library' },
-          { id: 'srv5', text: 'Content Strategy & Copywriting' },
-        ],
-      },
-      {
-        id: 'pi2',
-        type: 'multiple-choice',
-        title: 'What is your estimated target budget allocation for this project?',
-        required: true,
-        points: 0,
-        options: [
-          { id: 'b1', text: '$5,000 - $15,000 (Sprint / Prototype)' },
-          { id: 'b2', text: '$15,000 - $40,000 (Full Build)' },
-          { id: 'b3', text: '$40,000 - $100,000 (Enterprise Solution)' },
-          { id: 'b4', text: 'Flexible / Ongoing Retainer' },
-        ],
-      },
-      {
-        id: 'pi3',
-        type: 'multiple-choice',
-        title: 'Target launch timeline',
-        required: true,
-        points: 0,
-        options: [
-          { id: 'time1', text: 'Urgent (under 30 days)' },
-          { id: 'time2', text: 'Standard (1 - 3 months)' },
-          { id: 'time3', text: 'Long-term (3 - 6 months)' },
-          { id: 'time4', text: 'Exploratory / No fixed date' },
-        ],
-      },
-      {
-        id: 'pi4',
-        type: 'long-text',
-        title: 'Tell us about your brand vision, target audience, and primary measure of success.',
-        required: true,
-        points: 0,
-      },
-    ],
+    questions: [createDefaultBlankQuestion()],
   },
 
   // 10. Crimson Scholar Academic Science Olympiad
@@ -931,57 +485,92 @@ export const STARTER_TEMPLATES: Omit<Quiz, 'id' | 'creatorId' | 'creatorEmail' |
       successMessage: 'Your examination sheet has been graded according to Olympiad rubric standards.',
     },
     status: 'published',
-    questions: [
-      {
-        id: 'cs_q1',
-        type: 'multiple-choice',
-        title: 'What is the theoretical boundary around a black hole beyond which nothing, not even light, can escape?',
-        required: true,
-        points: 25,
-        options: [
-          { id: 'bh1', text: 'The Event Horizon', isCorrect: true },
-          { id: 'bh2', text: 'The Photon Sphere', isCorrect: false },
-          { id: 'bh3', text: 'The Accretion Disk', isCorrect: false },
-          { id: 'bh4', text: 'The Ergosphere', isCorrect: false },
-        ],
-        explanation: 'The event horizon is the radius at which escape velocity equals the speed of light c.',
-      },
-      {
-        id: 'cs_q2',
-        type: 'true-false',
-        title: 'Mitochondria contain their own circular DNA independent of the cell nucleus.',
-        required: true,
-        points: 20,
-        options: [
-          { id: 'mit-t', text: 'True (Endosymbiotic origin)', isCorrect: true },
-          { id: 'mit-f', text: 'False', isCorrect: false },
-        ],
-        explanation: 'According to endosymbiotic theory, mitochondria originated as engulfed aerobic prokaryotes with mtDNA.',
-      },
-      {
-        id: 'cs_q3',
-        type: 'multiple-select',
-        title: 'Which subatomic particles are composed of quarks?',
-        description: 'Select all hadrons.',
-        required: true,
-        points: 25,
-        options: [
-          { id: 'pt1', text: 'Proton (uud)', isCorrect: true },
-          { id: 'pt2', text: 'Neutron (udd)', isCorrect: true },
-          { id: 'pt3', text: 'Electron (fundamental lepton)', isCorrect: false },
-          { id: 'pt4', text: 'Pion (meson)', isCorrect: true },
-        ],
-        explanation: 'Protons and neutrons are baryons (3 quarks), pions are mesons (quark-antiquark). Electrons are elementary leptons.',
-      },
-      {
-        id: 'cs_q4',
-        type: 'short-text',
-        title: 'State the universal constant represented by the lowercase letter c in Einstein\'s E=mc².',
-        description: 'Standard physics quantity name.',
-        required: true,
-        points: 15,
-      },
-    ],
+    questions: [createDefaultBlankQuestion()],
   },
 ];
+
+export interface ThemeAtmosphereInfo {
+  name: string;
+  effectName: string;
+  badge: string;
+  description: string;
+}
+
+export const THEME_ATMOSPHERES: Record<string, ThemeAtmosphereInfo> = {
+  'minimal-studio': {
+    name: 'Minimal Studio',
+    effectName: 'Blueprint Drafting Grid',
+    badge: '📐 Precision Grid',
+    description: 'Architectural coordinates, alignment crosshairs, and slow scanning precision guidelines.',
+  },
+  'editorial-paper': {
+    name: 'Editorial Gazette',
+    effectName: 'Warm Parchment & Ink Dust',
+    badge: '📜 Vintage Ink',
+    description: 'Warm study ambient light, vintage ink specks, and delicate antique dust motes.',
+  },
+  'sage-botanical': {
+    name: 'Botanical Sage',
+    effectName: 'Falling Leaves & Forest Spores',
+    badge: '🌿 Falling Leaves',
+    description: 'Gently tumbling botanical leaves, glowing forest spores, and organic sunbeams.',
+  },
+  'midnight-obsidian': {
+    name: 'Midnight Obsidian',
+    effectName: 'Constellation Synaptic Tech',
+    badge: '🌌 Neural Cosmos',
+    description: 'Deep space cosmic aurora wave, interconnected neural nodes, and glowing data pulses.',
+  },
+  'sunset-terracotta': {
+    name: 'Sunset Terracotta',
+    effectName: 'Tuscan Twilight & Rising Embers',
+    badge: '🌅 Golden Glow',
+    description: 'Radiating golden hour horizon bloom, gentle heat shimmers, and ascending dusk embers.',
+  },
+  'cyber-neon': {
+    name: 'Cyber Horizon',
+    effectName: '3D Synthwave Grid & Electric Sparks',
+    badge: '⚡ 3D Horizon',
+    description: 'Receding 3D perspective grid floor, neon horizon glow, and high-speed cyber sparks.',
+  },
+  'lavender-dream': {
+    name: 'Lavender Mist',
+    effectName: 'Iridescent Wellness Orbs',
+    badge: '🫧 Iridescent Fog',
+    description: 'Soothing pastel mist clouds and floating translucent iridescent wellness bubbles.',
+  },
+  'neo-brutalist': {
+    name: 'Neo Brutalism',
+    effectName: 'Kinetic Pop-Art Geometry',
+    badge: '💥 Pop Geometry',
+    description: 'Crisp tumbling pop shapes (triangles, lightning, stars, crosses) with snappy physics.',
+  },
+  'luxury-monolith': {
+    name: 'Monolith Gold',
+    effectName: '24k Sparkling Diamond Dust',
+    badge: '✦ 24k Gold Stars',
+    description: 'Microscopic champagne gold glitter, four-point diamond star flares, and metallic sheen.',
+  },
+  'crimson-scholar': {
+    name: 'Crimson Scholar',
+    effectName: 'Atomic Orbits & Scholarly Embers',
+    badge: '⚛️ Atomic Orbits',
+    description: '3D rotating atomic orbital rings with electron paths and ascending scholarly ruby embers.',
+  },
+};
+
+export const getThemeAtmosphere = (themeId?: string): ThemeAtmosphereInfo => {
+  if (!themeId) return THEME_ATMOSPHERES['minimal-studio'];
+  const tid = themeId.toLowerCase();
+  for (const [key, info] of Object.entries(THEME_ATMOSPHERES)) {
+    if (tid.includes(key) || key.includes(tid)) return info;
+  }
+  return {
+    name: 'Custom Ambient',
+    effectName: 'Dynamic Ambient Field',
+    badge: '✨ Live Atmosphere',
+    description: 'Subtle ambient atmospheric particles matching this theme.',
+  };
+};
+
 

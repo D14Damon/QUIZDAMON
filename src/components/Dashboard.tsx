@@ -3,7 +3,6 @@ import { Quiz, MAX_QUIZZES_PER_USER } from '../types';
 import { getShareableQuizUrl } from '../lib/quizHelpers';
 import { 
   Plus, 
-  Sparkles, 
   Share2, 
   BarChart2, 
   Edit3, 
@@ -19,7 +18,8 @@ import {
   AlertTriangle,
   Search
 } from 'lucide-react';
-import { STARTER_TEMPLATES } from '../data/presets';
+import { STARTER_TEMPLATES, getThemeAtmosphere } from '../data/presets';
+import { TemplateLiveAtmosphere } from './TemplateLiveAtmosphere';
 import { QuizLimitModal } from './QuizLimitModal';
 
 interface DashboardProps {
@@ -30,7 +30,7 @@ interface DashboardProps {
   onTakeQuiz: (quizId: string) => void;
   onCreateNewQuiz: (templateIndex?: number) => void;
   onDeleteQuiz: (quizId: string) => void;
-  onLoadSamples: () => void;
+  onLoadSamples?: () => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
@@ -217,29 +217,20 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <p className="text-sm text-zinc-500 mt-3">Loading your quizzes from Firestore...</p>
           </div>
         ) : quizzes.length === 0 ? (
-          <div className="p-10 border-2 border-dashed border-zinc-200 rounded-3xl bg-zinc-50/60 text-center max-w-2xl mx-auto space-y-4">
-            <div className="w-14 h-14 mx-auto rounded-2xl bg-zinc-900 text-white flex items-center justify-center shadow-sm">
-              <Sparkles className="w-7 h-7 text-amber-300" />
+          <div className="p-10 border-2 border-dashed border-zinc-200 rounded-3xl bg-zinc-50/60 text-center max-w-2xl mx-auto space-y-3">
+            <div className="w-16 h-16 mx-auto rounded-2xl bg-white border border-zinc-200 overflow-hidden flex items-center justify-center shadow-sm p-1.5 hover:scale-105 transition-transform">
+              <img 
+                src="/dq_logo.jpg" 
+                alt="Damon-QUIZ Logo" 
+                className="w-full h-full object-contain rounded-xl"
+                referrerPolicy="no-referrer"
+              />
             </div>
             <div>
               <h3 className="text-lg font-bold text-zinc-900">No quizzes created yet</h3>
               <p className="text-xs text-zinc-500 max-w-md mx-auto mt-1 leading-relaxed">
-                Build your first quiz from scratch, or instantly import one of our free aesthetically designed starter templates to see how it works.
+                Click "+ Create Quiz" above to pick an aesthetic template and start designing your quiz.
               </p>
-            </div>
-            <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-              <button
-                onClick={handleInitiateCreateQuiz}
-                className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer"
-              >
-                Choose Design Template
-              </button>
-              <button
-                onClick={handleTriggerLoadSamples}
-                className="px-4 py-2 bg-white border border-zinc-300 hover:bg-zinc-50 text-zinc-800 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
-              >
-                Load 3 Aesthetic Samples
-              </button>
             </div>
           </div>
         ) : (
@@ -489,17 +480,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     <p className="text-xs text-zinc-500">No templates match your search.</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[420px] overflow-y-auto pr-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-h-[460px] overflow-y-auto pr-1">
                     {filteredTemplates.map((tmpl) => (
                       <div
                         key={tmpl.originalIndex}
                         onClick={() => handleSelectTemplate(tmpl.originalIndex)}
-                        className="p-4 border border-zinc-200 hover:border-zinc-900 rounded-2xl cursor-pointer transition-all hover:shadow-xs bg-zinc-50/50 hover:bg-white flex flex-col justify-between group"
+                        className="p-3.5 border border-zinc-200 hover:border-zinc-900 rounded-2xl cursor-pointer transition-all hover:shadow-md bg-white flex flex-col justify-between group"
                       >
                         <div>
                           <div className="flex items-center justify-between gap-1.5 mb-2">
                             <div className="flex items-center gap-1.5">
-                              <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded bg-zinc-200 text-zinc-700 font-mono">
+                              <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded bg-zinc-100 text-zinc-700 font-mono">
                                 {tmpl.layout}
                               </span>
                               {tmpl.category && (
@@ -508,21 +499,54 @@ export const Dashboard: React.FC<DashboardProps> = ({
                                 </span>
                               )}
                             </div>
-                            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-zinc-500">
-                              <span 
-                                className="w-2 h-2 rounded-full" 
-                                style={{ backgroundColor: tmpl.theme.primaryColor }}
-                              />
-                              {tmpl.theme.name}
+                            <span className="text-[10px] font-bold text-zinc-800 bg-zinc-100 px-2 py-0.5 rounded-full border border-zinc-200">
+                              {getThemeAtmosphere(tmpl.theme.id).badge}
                             </span>
                           </div>
-                          <h4 className="text-xs font-bold text-zinc-900 line-clamp-1 group-hover:text-zinc-950">{tmpl.title}</h4>
-                          <p className="text-[11px] text-zinc-500 line-clamp-2 mt-1 leading-relaxed">{tmpl.description}</p>
+
+                          {/* Live Interactive Atmosphere Preview Screen */}
+                          <div 
+                            className="relative h-28 my-1 rounded-xl overflow-hidden border shadow-inner flex items-center justify-center p-2 transition-transform group-hover:scale-[1.01]"
+                            style={{
+                              backgroundColor: tmpl.theme.backgroundColor,
+                              borderColor: tmpl.theme.borderColor || 'rgba(0,0,0,0.1)',
+                            }}
+                          >
+                            <TemplateLiveAtmosphere
+                              themeId={tmpl.theme.id}
+                              themeName={tmpl.theme.name}
+                              primaryColor={tmpl.theme.primaryColor}
+                              backgroundColor={tmpl.theme.backgroundColor}
+                              isDark={tmpl.theme.isDark}
+                              fixed={false}
+                            />
+
+                            {/* Floating Card Title inside the atmosphere */}
+                            <div 
+                              className="relative z-10 px-3 py-1.5 rounded-xl border backdrop-blur-xs shadow-xs text-center max-w-[88%]"
+                              style={{
+                                backgroundColor: tmpl.theme.cardBackgroundColor,
+                                borderColor: tmpl.theme.borderColor || 'rgba(0,0,0,0.1)',
+                                color: tmpl.theme.textColor,
+                              }}
+                            >
+                              <h4 className="text-xs font-bold truncate">
+                                {tmpl.title}
+                              </h4>
+                              <div className="text-[10px] opacity-75 font-mono mt-0.5">
+                                {getThemeAtmosphere(tmpl.theme.id).effectName}
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                        <div className="mt-3 pt-2 border-t border-zinc-200/60 flex items-center justify-between text-[10px] text-zinc-400 font-semibold">
-                          <span>{tmpl.questions.length} Questions</span>
-                          <span className="text-zinc-900 flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform">
-                            Use Template <ArrowRight className="w-2.5 h-2.5" />
+
+                        <div className="mt-2.5 pt-2 border-t border-zinc-100 flex items-center justify-between text-[11px]">
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            Live 60 FPS
+                          </span>
+                          <span className="text-zinc-900 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform font-bold text-xs">
+                            Use Template <ArrowRight className="w-3 h-3" />
                           </span>
                         </div>
                       </div>

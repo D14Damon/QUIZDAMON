@@ -11,7 +11,8 @@ import {
   BorderRadiusType, 
   ButtonStyleType 
 } from '../../types';
-import { THEME_PRESETS } from '../../data/presets';
+import { THEME_PRESETS, getThemeAtmosphere } from '../../data/presets';
+import { TemplateLiveAtmosphere } from '../TemplateLiveAtmosphere';
 import { saveQuiz } from '../../lib/quizDbService';
 import { getShareableQuizUrl } from '../../lib/quizHelpers';
 import { 
@@ -84,6 +85,65 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
   const [newSectionInput, setNewSectionInput] = useState('');
   const [allowedEmailInput, setAllowedEmailInput] = useState('');
 
+  const handleAddAllowedEntry = (customInput?: string) => {
+    const raw = (customInput !== undefined ? customInput : allowedEmailInput).trim();
+    if (!raw) return;
+
+    const parts = raw
+      .split(/[,;\s]+/)
+      .map((p) => p.trim().toLowerCase())
+      .filter(Boolean);
+
+    const curr = [...(quiz.settings.allowedEmails || [])];
+    let changed = false;
+
+    for (let part of parts) {
+      if (part.includes('.') && !part.includes('@')) {
+        part = '@' + part;
+      }
+      if (!curr.includes(part)) {
+        curr.push(part);
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      updateSettingsField('allowedEmails', curr);
+    }
+    setAllowedEmailInput('');
+  };
+
+  const getQuizWithPendingAllowedEmails = (baseQuiz = quiz): Quiz => {
+    if (!allowedEmailInput.trim()) return baseQuiz;
+    const parts = allowedEmailInput
+      .trim()
+      .split(/[,;\s]+/)
+      .map((p) => p.trim().toLowerCase())
+      .filter(Boolean);
+
+    const curr = [...(baseQuiz.settings.allowedEmails || [])];
+    let changed = false;
+
+    for (let part of parts) {
+      if (part.includes('.') && !part.includes('@')) {
+        part = '@' + part;
+      }
+      if (!curr.includes(part)) {
+        curr.push(part);
+        changed = true;
+      }
+    }
+
+    if (!changed) return baseQuiz;
+    return {
+      ...baseQuiz,
+      settings: {
+        ...baseQuiz.settings,
+        allowedEmails: curr,
+      },
+    };
+  };
+
   const updateQuizField = <K extends keyof Quiz>(field: K, value: Quiz[K]) => {
     setQuiz((prev) => ({ ...prev, [field]: value }));
   };
@@ -129,9 +189,10 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
       required: true,
       points: 10,
       options: type === 'multiple-choice' || type === 'multiple-select' ? [
-        { id: 'opt_1', text: 'Option 1', isCorrect: true },
-        { id: 'opt_2', text: 'Option 2', isCorrect: false },
-        { id: 'opt_3', text: 'Option 3', isCorrect: false },
+        { id: 'opt_1', text: '', isCorrect: true },
+        { id: 'opt_2', text: '', isCorrect: false },
+        { id: 'opt_3', text: '', isCorrect: false },
+        { id: 'opt_4', text: '', isCorrect: false },
       ] : type === 'true-false' ? [
         { id: 'tf_1', text: 'True', isCorrect: true },
         { id: 'tf_2', text: 'False', isCorrect: false },
@@ -234,11 +295,16 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
   const handleSave = async () => {
     try {
       setIsSaving(true);
+      const quizToSave = getQuizWithPendingAllowedEmails();
+      if (allowedEmailInput.trim()) {
+        setQuiz(quizToSave);
+        setAllowedEmailInput('');
+      }
       const savedId = await saveQuiz({
-        ...quiz,
+        ...quizToSave,
         creatorId: userId,
         creatorEmail: userEmail,
-        creatorName: (quiz.creatorName && quiz.creatorName.trim()) ? quiz.creatorName.trim() : (creatorName || 'Creator'),
+        creatorName: (quizToSave.creatorName && quizToSave.creatorName.trim()) ? quizToSave.creatorName.trim() : (creatorName || 'Creator'),
       });
       setQuiz((prev) => ({ ...prev, id: savedId }));
       setSaveSuccess(true);
@@ -260,11 +326,16 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
     if (!currentQuizId || currentQuizId.startsWith('q_') || currentQuizId.startsWith('sample_')) {
       try {
         setIsSaving(true);
+        const quizToSave = getQuizWithPendingAllowedEmails();
+        if (allowedEmailInput.trim()) {
+          setQuiz(quizToSave);
+          setAllowedEmailInput('');
+        }
         const savedId = await saveQuiz({
-          ...quiz,
+          ...quizToSave,
           creatorId: userId,
           creatorEmail: userEmail,
-          creatorName: (quiz.creatorName && quiz.creatorName.trim()) ? quiz.creatorName.trim() : (creatorName || 'Creator'),
+          creatorName: (quizToSave.creatorName && quizToSave.creatorName.trim()) ? quizToSave.creatorName.trim() : (creatorName || 'Creator'),
         });
         currentQuizId = savedId;
         setQuiz((prev) => ({ ...prev, id: savedId }));
@@ -314,123 +385,30 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
             </div>
           </div>
 
-          {/* Center Tabs: Questions, Design Studio, Settings */}
-          <div className="flex items-center bg-zinc-100/90 p-1 rounded-xl shrink-0 h-9 border border-zinc-200/50">
-            <button
-              onClick={() => setActiveTab('questions')}
-              className={`h-7 flex items-center gap-1.5 px-3 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                activeTab === 'questions'
-                  ? 'bg-white text-zinc-900 shadow-xs'
-                  : 'text-zinc-600 hover:text-zinc-900'
-              }`}
-            >
-              <ListChecks className="w-3.5 h-3.5 shrink-0" />
-              <span className="whitespace-nowrap">Questions</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('design')}
-              className={`h-7 flex items-center gap-1.5 px-3 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                activeTab === 'design'
-                  ? 'bg-white text-zinc-900 shadow-xs'
-                  : 'text-zinc-600 hover:text-zinc-900'
-              }`}
-            >
-              <Palette className="w-3.5 h-3.5 shrink-0" />
-              <span className="whitespace-nowrap">Design Studio</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('settings')}
-              className={`h-7 flex items-center gap-1.5 px-3 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                activeTab === 'settings'
-                  ? 'bg-white text-zinc-900 shadow-xs'
-                  : 'text-zinc-600 hover:text-zinc-900'
-              }`}
-            >
-              <SettingsIcon className="w-3.5 h-3.5 shrink-0" />
-              <span className="whitespace-nowrap">Settings</span>
-            </button>
-          </div>
-
           {/* Right Action Buttons */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 flex-nowrap">
             <button
-              onClick={() => setShowTimerModal(true)}
-              className={`h-8.5 flex items-center gap-1.5 px-3 border text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap shrink-0 select-none ${
-                quiz.settings.timerMode === 'whole-quiz' || (!quiz.settings.timerMode && quiz.settings.timeLimitMinutes)
-                  ? 'bg-amber-50 hover:bg-amber-100 border-amber-300 text-amber-900 shadow-2xs'
-                  : quiz.settings.timerMode === 'per-question'
-                  ? 'bg-indigo-50 hover:bg-indigo-100 border-indigo-300 text-indigo-900 shadow-2xs'
-                  : 'bg-white hover:bg-zinc-100 border-zinc-200 text-zinc-700'
-              }`}
-              title="Configure countdown timer (whole quiz or per question)"
-            >
-              <Clock className={`w-3.5 h-3.5 shrink-0 ${
-                quiz.settings.timerMode === 'whole-quiz' || (!quiz.settings.timerMode && quiz.settings.timeLimitMinutes)
-                  ? 'text-amber-600'
-                  : quiz.settings.timerMode === 'per-question'
-                  ? 'text-indigo-600'
-                  : 'text-zinc-500'
-              }`} />
-              <span className="whitespace-nowrap">
-                {quiz.settings.timerMode === 'whole-quiz' || (!quiz.settings.timerMode && quiz.settings.timeLimitMinutes)
-                  ? `Timer: ${quiz.settings.timeLimitMinutes || 15}m`
-                  : quiz.settings.timerMode === 'per-question'
-                  ? `Timer: ${quiz.settings.questionTimeLimitSeconds || 30}s/q`
-                  : 'Timer'}
-              </span>
-            </button>
-
-            <button
-              onClick={() => setShowDeadlineModal(true)}
-              className={`h-8.5 flex items-center gap-1.5 px-3 border text-xs font-semibold rounded-xl transition-all cursor-pointer whitespace-nowrap shrink-0 select-none ${
-                quiz.settings.deadline
-                  ? new Date(quiz.settings.deadline).getTime() < Date.now()
-                    ? 'bg-rose-50 hover:bg-rose-100 border-rose-300 text-rose-900 shadow-2xs'
-                    : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-300 text-emerald-900 shadow-2xs'
-                  : 'bg-white hover:bg-zinc-100 border-zinc-200 text-zinc-700'
-              }`}
-              title="Configure quiz submission deadline cutoff"
-            >
-              <CalendarClock className={`w-3.5 h-3.5 shrink-0 ${
-                quiz.settings.deadline
-                  ? new Date(quiz.settings.deadline).getTime() < Date.now()
-                    ? 'text-rose-600'
-                    : 'text-emerald-600'
-                  : 'text-zinc-500'
-              }`} />
-              <span className="whitespace-nowrap">
-                {quiz.settings.deadline
-                  ? new Date(quiz.settings.deadline).getTime() < Date.now()
-                    ? 'Deadline: Expired'
-                    : 'Deadline Set'
-                  : 'Deadline'}
-              </span>
-            </button>
-
-            <button
               onClick={() => setShowLivePreviewModal(true)}
-              className="h-8.5 flex items-center gap-1.5 px-3 bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-800 text-xs font-semibold rounded-xl transition-colors cursor-pointer whitespace-nowrap shrink-0 select-none"
+              className="h-8.5 flex items-center gap-1.5 px-2.5 sm:px-3 bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-800 text-xs font-semibold rounded-xl transition-colors cursor-pointer whitespace-nowrap shrink-0 select-none touch-manipulation"
               title="Preview quiz with chosen theme and layout"
             >
               <Eye className="w-3.5 h-3.5 text-zinc-600 shrink-0" />
-              <span className="whitespace-nowrap">Live Preview</span>
+              <span className="whitespace-nowrap"><span className="hidden sm:inline">Live </span>Preview</span>
             </button>
 
             <button
               onClick={copyShareLink}
-              className="h-8.5 flex items-center gap-1.5 px-3 bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-800 text-xs font-semibold rounded-xl transition-colors cursor-pointer whitespace-nowrap shrink-0 select-none"
+              className="h-8.5 flex items-center gap-1.5 px-2.5 sm:px-3 bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-800 text-xs font-semibold rounded-xl transition-colors cursor-pointer whitespace-nowrap shrink-0 select-none touch-manipulation"
             >
               {copiedLink ? (
                 <>
                   <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span className="text-emerald-700 whitespace-nowrap font-medium">Link Copied!</span>
+                  <span className="text-emerald-700 whitespace-nowrap font-medium"><span className="hidden sm:inline">Link </span>Copied!</span>
                 </>
               ) : (
                 <>
                   <Share2 className="w-3.5 h-3.5 text-zinc-600 shrink-0" />
-                  <span className="whitespace-nowrap">Share Link</span>
+                  <span className="whitespace-nowrap"><span className="hidden sm:inline">Share </span>Link</span>
                 </>
               )}
             </button>
@@ -438,7 +416,7 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
             <button
               onClick={handleSave}
               disabled={isSaving}
-              className="h-8.5 flex items-center gap-1.5 px-3.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-bold rounded-xl shadow-xs transition-colors disabled:opacity-60 cursor-pointer whitespace-nowrap shrink-0 select-none"
+              className="h-8.5 flex items-center gap-1.5 px-3 sm:px-3.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-bold rounded-xl shadow-xs transition-colors disabled:opacity-60 cursor-pointer whitespace-nowrap shrink-0 select-none touch-manipulation"
             >
               {isSaving ? (
                 <span className="inline-block animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent shrink-0" />
@@ -450,17 +428,240 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
               ) : (
                 <>
                   <Save className="w-3.5 h-3.5 shrink-0" />
-                  <span className="whitespace-nowrap">Save Quiz</span>
+                  <span className="whitespace-nowrap">Save<span className="hidden sm:inline"> Quiz</span></span>
                 </>
               )}
             </button>
           </div>
-
         </div>
       </div>
 
-      {/* Main Content Area */}
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-6">
+      {/* Main Workspace Layout with Left-Side Vertical Navigation */}
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 pt-4 sm:pt-6 flex flex-col md:flex-row gap-6 items-start">
+        
+        {/* Mobile / Small Screen Horizontal Sticky Navigation Bar */}
+        <div className="md:hidden w-full sticky top-[6.25rem] z-20 bg-zinc-50/95 backdrop-blur-md pb-1">
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
+            <button
+              onClick={() => setActiveTab('questions')}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer touch-manipulation ${
+                activeTab === 'questions' ? 'bg-zinc-900 text-white shadow-xs' : 'bg-white border border-zinc-200 text-zinc-700'
+              }`}
+            >
+              <ListChecks className="w-3.5 h-3.5 shrink-0" />
+              <span>Questions</span>
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                activeTab === 'questions' ? 'bg-zinc-800 text-zinc-200' : 'bg-zinc-100 text-zinc-600'
+              }`}>
+                {quiz.questions.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('design')}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer touch-manipulation ${
+                activeTab === 'design' ? 'bg-zinc-900 text-white shadow-xs' : 'bg-white border border-zinc-200 text-zinc-700'
+              }`}
+            >
+              <Palette className="w-3.5 h-3.5 shrink-0" />
+              <span>Design</span>
+              <div 
+                className="w-2.5 h-2.5 rounded-full border border-black/15 shadow-2xs shrink-0"
+                style={{ backgroundColor: quiz.theme.primaryColor }}
+              />
+            </button>
+
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer touch-manipulation ${
+                activeTab === 'settings' ? 'bg-zinc-900 text-white shadow-xs' : 'bg-white border border-zinc-200 text-zinc-700'
+              }`}
+            >
+              <SettingsIcon className="w-3.5 h-3.5 shrink-0" />
+              <span>Settings</span>
+            </button>
+
+            <div className="w-px h-5 bg-zinc-300 mx-0.5 shrink-0" />
+
+            <button
+              onClick={() => setShowTimerModal(true)}
+              className={`flex items-center gap-1 px-2.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer touch-manipulation ${
+                quiz.settings.timerMode === 'whole-quiz' || (!quiz.settings.timerMode && quiz.settings.timeLimitMinutes)
+                  ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                  : quiz.settings.timerMode === 'per-question'
+                  ? 'bg-indigo-100 text-indigo-900 border border-indigo-300'
+                  : 'bg-white border border-zinc-200 text-zinc-700'
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5 shrink-0" />
+              <span>Timer: {quiz.settings.timerMode === 'whole-quiz' || (!quiz.settings.timerMode && quiz.settings.timeLimitMinutes) ? `${quiz.settings.timeLimitMinutes || 15}m` : quiz.settings.timerMode === 'per-question' ? `${quiz.settings.questionTimeLimitSeconds || 30}s` : 'Off'}</span>
+            </button>
+
+            <button
+              onClick={() => setShowDeadlineModal(true)}
+              className={`flex items-center gap-1 px-2.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer touch-manipulation ${
+                quiz.settings.deadline ? 'bg-rose-100 text-rose-900 border border-rose-300' : 'bg-white border border-zinc-200 text-zinc-700'
+              }`}
+            >
+              <CalendarClock className="w-3.5 h-3.5 shrink-0" />
+              <span>{quiz.settings.deadline ? 'Deadline set' : 'Deadline'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Left Side: Vertically Aligned Choices & Timing Controls on Desktop */}
+        <aside className="hidden md:block w-64 shrink-0 md:sticky md:top-28 z-20">
+          <div className="bg-white border border-zinc-200 rounded-2xl p-3 shadow-xs space-y-3.5">
+            {/* Editor Views Section */}
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 px-2 block mb-1.5">
+                Editor Views
+              </span>
+              <div className="flex flex-col gap-1">
+                {/* Questions Tab */}
+                <button
+                  onClick={() => setActiveTab('questions')}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                    activeTab === 'questions'
+                      ? 'bg-zinc-900 text-white shadow-xs'
+                      : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <ListChecks className="w-4 h-4 shrink-0" />
+                    <span>Questions</span>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    activeTab === 'questions' ? 'bg-zinc-800 text-zinc-200' : 'bg-zinc-100 text-zinc-600'
+                  }`}>
+                    {quiz.questions.length}
+                  </span>
+                </button>
+
+                {/* Design Studio Tab */}
+                <button
+                  onClick={() => setActiveTab('design')}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                    activeTab === 'design'
+                      ? 'bg-zinc-900 text-white shadow-xs'
+                      : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Palette className="w-4 h-4 shrink-0" />
+                    <span>Design Studio</span>
+                  </div>
+                  <div 
+                    className="w-3.5 h-3.5 rounded-full border border-black/15 shadow-2xs shrink-0"
+                    style={{ backgroundColor: quiz.theme.primaryColor }}
+                    title="Theme Accent"
+                  />
+                </button>
+
+                {/* Settings Tab */}
+                <button
+                  onClick={() => setActiveTab('settings')}
+                  className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                    activeTab === 'settings'
+                      ? 'bg-zinc-900 text-white shadow-xs'
+                      : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100'
+                  }`}
+                >
+                  <SettingsIcon className="w-4 h-4 shrink-0" />
+                  <span>Settings</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="border-t border-zinc-100" />
+
+            {/* Quiz Timing & Deadline Section */}
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 px-2 block mb-1.5">
+                Timing & Schedule
+              </span>
+              <div className="flex flex-col gap-1.5">
+                {/* Timer Button */}
+                <button
+                  onClick={() => setShowTimerModal(true)}
+                  className={`w-full flex items-center justify-between p-2.5 border text-xs font-semibold rounded-xl transition-all cursor-pointer select-none text-left ${
+                    quiz.settings.timerMode === 'whole-quiz' || (!quiz.settings.timerMode && quiz.settings.timeLimitMinutes)
+                      ? 'bg-amber-50 hover:bg-amber-100 border-amber-300 text-amber-900 shadow-2xs'
+                      : quiz.settings.timerMode === 'per-question'
+                      ? 'bg-indigo-50 hover:bg-indigo-100 border-indigo-300 text-indigo-900 shadow-2xs'
+                      : 'bg-white hover:bg-zinc-50 border-zinc-200 text-zinc-700'
+                  }`}
+                  title="Configure countdown timer (whole quiz or per question)"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Clock className={`w-4 h-4 shrink-0 ${
+                      quiz.settings.timerMode === 'whole-quiz' || (!quiz.settings.timerMode && quiz.settings.timeLimitMinutes)
+                        ? 'text-amber-600'
+                        : quiz.settings.timerMode === 'per-question'
+                        ? 'text-indigo-600'
+                        : 'text-zinc-500'
+                    }`} />
+                    <span className="truncate">Timer</span>
+                  </div>
+                  <span className={`text-[11px] px-2 py-0.5 rounded-md font-semibold shrink-0 ${
+                    quiz.settings.timerMode === 'whole-quiz' || (!quiz.settings.timerMode && quiz.settings.timeLimitMinutes)
+                      ? 'bg-amber-200/60 text-amber-900'
+                      : quiz.settings.timerMode === 'per-question'
+                      ? 'bg-indigo-200/60 text-indigo-900'
+                      : 'bg-zinc-100 text-zinc-500'
+                  }`}>
+                    {quiz.settings.timerMode === 'whole-quiz' || (!quiz.settings.timerMode && quiz.settings.timeLimitMinutes)
+                      ? `${quiz.settings.timeLimitMinutes || 15}m`
+                      : quiz.settings.timerMode === 'per-question'
+                      ? `${quiz.settings.questionTimeLimitSeconds || 30}s/q`
+                      : 'Off'}
+                  </span>
+                </button>
+
+                {/* Deadline Button */}
+                <button
+                  onClick={() => setShowDeadlineModal(true)}
+                  className={`w-full flex items-center justify-between p-2.5 border text-xs font-semibold rounded-xl transition-all cursor-pointer select-none text-left ${
+                    quiz.settings.deadline
+                      ? new Date(quiz.settings.deadline).getTime() < Date.now()
+                        ? 'bg-rose-50 hover:bg-rose-100 border-rose-300 text-rose-900 shadow-2xs'
+                        : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-300 text-emerald-900 shadow-2xs'
+                      : 'bg-white hover:bg-zinc-50 border-zinc-200 text-zinc-700'
+                  }`}
+                  title="Configure quiz submission deadline cutoff"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <CalendarClock className={`w-4 h-4 shrink-0 ${
+                      quiz.settings.deadline
+                        ? new Date(quiz.settings.deadline).getTime() < Date.now()
+                          ? 'text-rose-600'
+                          : 'text-emerald-600'
+                        : 'text-zinc-500'
+                    }`} />
+                    <span className="truncate">Deadline</span>
+                  </div>
+                  <span className={`text-[11px] px-2 py-0.5 rounded-md font-semibold shrink-0 ${
+                    quiz.settings.deadline
+                      ? new Date(quiz.settings.deadline).getTime() < Date.now()
+                        ? 'bg-rose-200/60 text-rose-900'
+                        : 'bg-emerald-200/60 text-emerald-900'
+                        : 'bg-zinc-100 text-zinc-500'
+                  }`}>
+                    {quiz.settings.deadline
+                      ? new Date(quiz.settings.deadline).getTime() < Date.now()
+                        ? 'Expired'
+                        : 'Set'
+                      : 'None'}
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        {/* Main Workspace Content Area */}
+        <main className="flex-1 min-w-0 w-full max-w-4xl">
 
         {/* ================= QUESTIONS TAB ================= */}
         {activeTab === 'questions' && (
@@ -604,7 +805,7 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
                             value={opt.text}
                             onChange={(e) => updateOptionText(question.id, opt.id, e.target.value)}
                             placeholder={`Option ${optIdx + 1}`}
-                            className="flex-1 text-xs text-zinc-800 border border-zinc-200 hover:border-zinc-300 focus:border-zinc-900 rounded-lg px-3 py-1.5 focus:outline-none"
+                            className="flex-1 text-base sm:text-xs text-zinc-800 border border-zinc-200 hover:border-zinc-300 focus:border-zinc-900 rounded-lg px-3 py-1.5 focus:outline-none touch-manipulation"
                           />
 
                           {question.type !== 'true-false' && (question.options?.length || 0) > 1 && (
@@ -899,12 +1100,89 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
                         </div>
                       </div>
 
-                      <div className="mt-2 text-[10px] uppercase font-mono text-zinc-400">
-                        {preset.fontFamily} • {preset.cardStyle}
+                      <div className="mt-2 flex items-center justify-between text-[10px] uppercase font-mono text-zinc-400">
+                        <span>{preset.fontFamily}</span>
+                        <span className="text-[9px] font-bold text-zinc-700 bg-black/5 px-1.5 py-0.5 rounded-sm">
+                          {getThemeAtmosphere(preset.id).badge}
+                        </span>
                       </div>
                     </div>
                   );
                 })}
+              </div>
+            </div>
+
+            {/* Live Atmosphere Real-Time Interactive Experience */}
+            <div className="p-6 bg-white border border-zinc-200 rounded-2xl shadow-xs space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-zinc-900 font-modern">
+                      Live Atmospheric Animation: {getThemeAtmosphere(quiz.theme.id).name}
+                    </h3>
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 text-[11px] font-bold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      60 FPS Hardware-Accelerated
+                    </span>
+                  </div>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    {getThemeAtmosphere(quiz.theme.id).description}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowLivePreviewModal(true)}
+                  className="px-4 py-2 text-xs font-semibold rounded-xl bg-zinc-900 text-white hover:bg-zinc-800 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  Experience Full-Screen Atmosphere
+                </button>
+              </div>
+
+              {/* Realistic Live Preview Stage */}
+              <div 
+                className="relative h-48 rounded-2xl overflow-hidden border flex items-center justify-center p-6 shadow-inner"
+                style={{
+                  backgroundColor: quiz.theme.backgroundColor,
+                  borderColor: quiz.theme.borderColor,
+                }}
+              >
+                {/* Live Atmosphere running inside container */}
+                <TemplateLiveAtmosphere
+                  themeId={quiz.theme.id}
+                  themeName={quiz.theme.name}
+                  primaryColor={quiz.theme.primaryColor}
+                  backgroundColor={quiz.theme.backgroundColor}
+                  isDark={quiz.theme.isDark}
+                  fixed={false}
+                />
+
+                {/* Floating Quiz Preview Card */}
+                <div 
+                  className="relative z-10 max-w-sm w-full p-4 rounded-xl border shadow-md text-center space-y-2 backdrop-blur-xs"
+                  style={{
+                    backgroundColor: quiz.theme.cardBackgroundColor,
+                    borderColor: quiz.theme.borderColor,
+                    color: quiz.theme.textColor,
+                  }}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono uppercase tracking-wider opacity-60">
+                      {getThemeAtmosphere(quiz.theme.id).effectName}
+                    </span>
+                    <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-amber-500 animate-pulse" />
+                      Live Realistic Simulation
+                    </span>
+                  </div>
+                  <h4 className="text-sm font-bold truncate">
+                    {quiz.title || 'Interactive Quiz Atmosphere'}
+                  </h4>
+                  <p className="text-xs opacity-70 line-clamp-1">
+                    When respondents open this quiz link, they will experience this live ambient animation smoothly.
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -1401,64 +1679,105 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
                         </label>
 
                         {quiz.settings.restrictToAllowedEmails && (
-                          <div className="space-y-2 pt-2 border-t border-zinc-100">
-                            <label className="block text-[11px] font-semibold text-zinc-600">
-                              Allowed Respondent Emails ({(quiz.settings.allowedEmails || []).length} registered)
-                            </label>
-                            <div className="flex flex-wrap gap-1.5 mb-1.5">
-                              {(quiz.settings.allowedEmails || []).map((em, idx) => (
-                                <span
-                                  key={idx}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-zinc-100 text-zinc-800 text-xs font-medium rounded-lg"
-                                >
-                                  {em}
+                          <div className="space-y-3 pt-3 border-t border-zinc-100">
+                            <div>
+                              <div className="flex items-center justify-between">
+                                <label className="block text-[11px] font-semibold text-zinc-700">
+                                  Allowed Respondent Emails or School Domains ({(quiz.settings.allowedEmails || []).length} registered)
+                                </label>
+                                {(quiz.settings.allowedEmails || []).length > 0 && (
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      const curr = quiz.settings.allowedEmails || [];
-                                      updateSettingsField('allowedEmails', curr.filter((_, i) => i !== idx));
-                                    }}
-                                    className="text-zinc-400 hover:text-rose-600 cursor-pointer"
+                                    onClick={() => updateSettingsField('allowedEmails', [])}
+                                    className="text-[10px] text-zinc-400 hover:text-rose-600 cursor-pointer"
                                   >
-                                    <X className="w-3 h-3" />
+                                    Clear all
                                   </button>
-                                </span>
-                              ))}
+                                )}
+                              </div>
+                              <p className="text-[10px] text-zinc-500 mt-0.5 leading-relaxed">
+                                Enter a school domain with <strong className="text-zinc-800 font-mono">@</strong> (e.g. <span className="bg-zinc-100 text-zinc-800 px-1 py-0.5 rounded font-mono">@paterostechnologicalcollege.edu.ph</span>) to permit ALL students with that institutional domain, while strictly blocking personal emails like <span className="text-rose-600 font-mono">@gmail.com</span>. Or enter specific student emails.
+                              </p>
                             </div>
+
+                            {/* Tag Chips */}
+                            {(quiz.settings.allowedEmails || []).length > 0 ? (
+                              <div className="flex flex-wrap gap-1.5 p-2.5 bg-zinc-50 border border-zinc-200/80 rounded-xl max-h-36 overflow-y-auto">
+                                {(quiz.settings.allowedEmails || []).map((em, idx) => {
+                                  const isDomain = em.startsWith('@') || !em.includes('@');
+                                  return (
+                                    <span
+                                      key={idx}
+                                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg border shadow-2xs ${
+                                        isDomain
+                                          ? 'bg-blue-50 text-blue-900 border-blue-200'
+                                          : 'bg-white text-zinc-800 border-zinc-200'
+                                      }`}
+                                    >
+                                      {isDomain ? (
+                                        <Globe className="w-3 h-3 text-blue-600 shrink-0" />
+                                      ) : (
+                                        <Mail className="w-3 h-3 text-zinc-500 shrink-0" />
+                                      )}
+                                      <span className="font-mono text-[11px] font-semibold">{em}</span>
+                                      {isDomain && (
+                                        <span className="text-[9px] font-bold uppercase tracking-wider bg-blue-100 text-blue-800 px-1 rounded-sm">
+                                          School Domain
+                                        </span>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const curr = quiz.settings.allowedEmails || [];
+                                          updateSettingsField('allowedEmails', curr.filter((_, i) => i !== idx));
+                                        }}
+                                        className="text-zinc-400 hover:text-rose-600 cursor-pointer ml-0.5"
+                                        title="Remove"
+                                      >
+                                        <X className="w-3 h-3" />
+                                      </button>
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div className="p-3 bg-amber-50/80 border border-amber-200/80 rounded-xl text-[11px] text-amber-900 flex items-start gap-2">
+                                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                <div>
+                                  <strong className="font-semibold text-amber-900">No authorized emails or domains registered yet.</strong>
+                                  <p className="text-[10px] text-amber-700 mt-0.5 leading-relaxed">
+                                    When this setting is enabled without entries, nobody can start the quiz. Add your school domain below (e.g. <span className="font-mono font-bold">@paterostechnologicalcollege.edu.ph</span>).
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Input and Add Button */}
                             <div className="flex items-center gap-2">
                               <input
-                                type="email"
+                                type="text"
                                 value={allowedEmailInput}
                                 onChange={(e) => setAllowedEmailInput(e.target.value)}
                                 onKeyDown={(e) => {
                                   if (e.key === 'Enter') {
                                     e.preventDefault();
-                                    if (allowedEmailInput.trim() && allowedEmailInput.includes('@')) {
-                                      const curr = quiz.settings.allowedEmails || [];
-                                      if (!curr.includes(allowedEmailInput.trim().toLowerCase())) {
-                                        updateSettingsField('allowedEmails', [...curr, allowedEmailInput.trim().toLowerCase()]);
-                                      }
-                                      setAllowedEmailInput('');
-                                    }
+                                    handleAddAllowedEntry();
                                   }
                                 }}
-                                placeholder="Add email, e.g. student@school.edu"
-                                className="flex-1 text-xs border border-zinc-200 rounded-lg p-2 focus:border-zinc-900 focus:outline-none"
+                                onBlur={() => {
+                                  if (allowedEmailInput.trim()) {
+                                    handleAddAllowedEntry();
+                                  }
+                                }}
+                                placeholder="Add school domain (e.g. @paterostechnologicalcollege.edu.ph) or student email"
+                                className="flex-1 text-xs border border-zinc-200 rounded-lg p-2.5 bg-white focus:border-zinc-900 focus:outline-none"
                               />
                               <button
                                 type="button"
-                                onClick={() => {
-                                  if (allowedEmailInput.trim() && allowedEmailInput.includes('@')) {
-                                    const curr = quiz.settings.allowedEmails || [];
-                                    if (!curr.includes(allowedEmailInput.trim().toLowerCase())) {
-                                      updateSettingsField('allowedEmails', [...curr, allowedEmailInput.trim().toLowerCase()]);
-                                    }
-                                    setAllowedEmailInput('');
-                                  }
-                                }}
-                                className="px-3 py-2 bg-zinc-900 text-white text-xs font-semibold rounded-lg hover:bg-zinc-800 cursor-pointer"
+                                onClick={() => handleAddAllowedEntry()}
+                                className="px-3.5 py-2.5 bg-zinc-900 text-white text-xs font-semibold rounded-lg hover:bg-zinc-800 cursor-pointer shrink-0 transition-colors"
                               >
-                                Add Email
+                                Add Rule
                               </button>
                             </div>
                           </div>
@@ -1807,28 +2126,29 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
           </div>
         )}
 
+        </main>
       </div>
 
       {/* Live Preview Modal */}
       {showLivePreviewModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-2 sm:p-6 animate-in fade-in">
-          <div className="relative w-full max-w-5xl h-[92vh] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-zinc-300">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-1.5 sm:p-6 animate-in fade-in">
+          <div className="relative w-full max-w-5xl h-[94dvh] max-h-[94dvh] bg-white rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-zinc-300">
             {/* Modal Header */}
-            <div className="px-6 py-3.5 bg-zinc-900 text-white flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-bold tracking-tight font-modern">
+            <div className="px-3 sm:px-6 py-2.5 sm:py-3.5 bg-zinc-900 text-white flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-xs font-bold tracking-tight font-modern truncate">
                   Live Preview: {quiz.title || 'Untitled Quiz'}
                 </span>
-                <span className="text-xs text-zinc-400 font-mono">
+                <span className="hidden sm:inline text-xs text-zinc-400 font-mono shrink-0">
                   [{quiz.layout} • {quiz.theme.name}]
                 </span>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                 <div className="flex items-center bg-zinc-800 rounded-lg p-0.5">
                   <button
                     onClick={() => setPreviewDevice('desktop')}
-                    className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                    className={`px-2 sm:px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer touch-manipulation ${
                       previewDevice === 'desktop' ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white'
                     }`}
                   >
@@ -1836,7 +2156,7 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
                   </button>
                   <button
                     onClick={() => setPreviewDevice('mobile')}
-                    className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                    className={`px-2 sm:px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer touch-manipulation ${
                       previewDevice === 'mobile' ? 'bg-zinc-700 text-white' : 'text-zinc-400 hover:text-white'
                     }`}
                   >
@@ -1846,7 +2166,7 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
 
                 <button
                   onClick={() => setShowLivePreviewModal(false)}
-                  className="text-zinc-400 hover:text-white p-1 rounded-lg cursor-pointer"
+                  className="text-zinc-400 hover:text-white p-1 rounded-lg cursor-pointer touch-manipulation"
                 >
                   ✕
                 </button>

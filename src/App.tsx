@@ -182,32 +182,23 @@ export default function App() {
         successTitle: 'Quiz Finished!',
         successMessage: 'Your submission has been recorded. Review your performance below.',
       },
-      questions: template
-        ? template.questions.map((q) => ({
-            ...q,
-            id: 'q_' + Math.random().toString(36).substring(2, 9),
-            options: q.options
-              ? q.options.map((o) => ({
-                  ...o,
-                  id: 'opt_' + Math.random().toString(36).substring(2, 8),
-                }))
-              : undefined,
-          }))
-        : [
-            {
-              id: 'q_' + Math.random().toString(36).substring(2, 8),
-              type: 'multiple-choice',
-              title: 'What is your primary goal with this assessment?',
-              required: true,
-              points: 10,
-              options: [
-                { id: 'o1', text: 'Evaluate team knowledge', isCorrect: true },
-                { id: 'o2', text: 'Collect client feedback', isCorrect: false },
-                { id: 'o3', text: 'Engage audience interactively', isCorrect: false },
-              ],
-              explanation: 'Clear objectives streamline question design and formatting.',
-            },
+      questions: [
+        {
+          id: 'q_' + Math.random().toString(36).substring(2, 9),
+          type: 'multiple-choice',
+          title: '',
+          description: '',
+          required: true,
+          points: 10,
+          options: [
+            { id: 'opt_1', text: '', isCorrect: true },
+            { id: 'opt_2', text: '', isCorrect: false },
+            { id: 'opt_3', text: '', isCorrect: false },
+            { id: 'opt_4', text: '', isCorrect: false },
           ],
+          explanation: '',
+        },
+      ],
       status: 'published',
       responseCount: 0,
       createdAt: new Date(),

@@ -10,7 +10,6 @@ import {
   ArrowLeft, 
   Check, 
   Clock, 
-  Sparkles, 
   AlertCircle, 
   CheckCircle2, 
   XCircle, 
@@ -26,6 +25,70 @@ import {
   CalendarX,
   User
 } from 'lucide-react';
+import { TemplateLiveAtmosphere } from '../TemplateLiveAtmosphere';
+
+/**
+ * Validates respondent email against quiz allowed list/domain rules.
+ * Supports exact emails (e.g. student@school.edu) and institutional domains (e.g. @paterostechnologicalcollege.edu.ph or paterostechnologicalcollege.edu.ph).
+ */
+export const verifyAllowedRespondentEmail = (
+  email: string,
+  settings: Quiz['settings']
+): { allowed: boolean; error?: string } => {
+  if (!settings.restrictToAllowedEmails) {
+    return { allowed: true };
+  }
+
+  const rawInput = (email || '').trim().toLowerCase();
+  const allowedList = (settings.allowedEmails || []).map((e) => e.trim().toLowerCase()).filter(Boolean);
+
+  // If creator enabled restrictions, but hasn't entered any authorized emails/domains
+  if (allowedList.length === 0) {
+    return {
+      allowed: false,
+      error: 'Access restricted: Strict email restriction is enabled, but no authorized student emails or school domains have been registered yet by the instructor.',
+    };
+  }
+
+  if (!rawInput || !rawInput.includes('@')) {
+    return {
+      allowed: false,
+      error: 'Please enter a valid school/institutional email address.',
+    };
+  }
+
+  const isMatched = allowedList.some((rule) => {
+    // 1. Rule is domain wildcard: e.g. "@paterostechnologicalcollege.edu.ph"
+    if (rule.startsWith('@')) {
+      return rawInput.endsWith(rule);
+    }
+    // 2. Rule is domain without leading @: e.g. "paterostechnologicalcollege.edu.ph"
+    if (!rule.includes('@')) {
+      return rawInput.endsWith('@' + rule) || rawInput === rule;
+    }
+    // 3. Exact student email: e.g. "student@paterostechnologicalcollege.edu.ph"
+    return rawInput === rule;
+  });
+
+  if (!isMatched) {
+    const domainRules = allowedList.filter((r) => r.startsWith('@') || !r.includes('@'));
+    if (domainRules.length > 0) {
+      const allowedDomainsDisplay = domainRules
+        .map((d) => (d.startsWith('@') ? d : `@${d}`))
+        .join(', ');
+      return {
+        allowed: false,
+        error: `Access Denied: Only accounts from authorized school domain(s) (${allowedDomainsDisplay}) are permitted to answer this quiz. Personal accounts (such as @gmail.com) are strictly blocked.`,
+      };
+    }
+    return {
+      allowed: false,
+      error: 'Access Denied: This email address is not in the authorized student list for this quiz. Please use your registered institutional email.',
+    };
+  }
+
+  return { allowed: true };
+};
 
 interface QuizTakerProps {
   quiz: Quiz;
@@ -56,6 +119,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [results, setResults] = useState<ReturnType<typeof calculateQuizResults> | null>(null);
   const [timeSpentSeconds, setTimeSpentSeconds] = useState(0);
+  const [showAtmosphere] = useState(true);
 
   // Timer Configuration & State
   const timerMode = quiz.settings.timerMode || (quiz.settings.timeLimitMinutes ? 'whole-quiz' : 'none');
@@ -334,12 +398,11 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
       return;
     }
 
-    // Check allowed emails restriction
-    if (quiz.settings.restrictToAllowedEmails && quiz.settings.allowedEmails && quiz.settings.allowedEmails.length > 0) {
-      const normalizedEmail = respondentEmail.trim().toLowerCase();
-      const isAllowed = quiz.settings.allowedEmails.some((em) => em.trim().toLowerCase() === normalizedEmail);
-      if (!isAllowed) {
-        setValidationError('This email is not authorized to take this quiz. Please use your registered email address.');
+    // Strict allowed email / school domain verification
+    if (quiz.settings.restrictToAllowedEmails || respondentEmail.trim()) {
+      const emailCheck = verifyAllowedRespondentEmail(respondentEmail, quiz.settings);
+      if (!emailCheck.allowed) {
+        setValidationError(emailCheck.error || 'This email is not authorized.');
         return;
       }
     }
@@ -424,6 +487,13 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
       if (quiz.settings.collectEmail && quiz.settings.requireEmail && !respondentEmail.trim()) {
         setValidationError('Please provide your email address.');
         return;
+      }
+      if (quiz.settings.restrictToAllowedEmails || respondentEmail.trim()) {
+        const emailCheck = verifyAllowedRespondentEmail(respondentEmail, quiz.settings);
+        if (!emailCheck.allowed) {
+          setValidationError(emailCheck.error || 'This email is not authorized.');
+          return;
+        }
       }
       for (let i = 0; i < quiz.questions.length; i++) {
         const q = quiz.questions[i];
@@ -565,7 +635,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                       {letter}
                     </span>
                     <span className="text-sm font-semibold" style={{ color: quiz.theme.textColor }}>
-                      {opt.text}
+                      {opt.text || `Option ${idx + 1}`}
                     </span>
                   </div>
                   {isSelected && (
@@ -620,7 +690,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                       {isSelected && <Check className="w-3.5 h-3.5" />}
                     </div>
                     <span className="text-sm font-semibold" style={{ color: quiz.theme.textColor }}>
-                      {opt.text}
+                      {opt.text || `Option`}
                     </span>
                   </div>
                 </button>
@@ -638,7 +708,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
               value={val || ''}
               onChange={(e) => handleOptionSelect(question.id, e.target.value, false)}
               placeholder={isInputDisabled ? 'Time has expired' : 'Type your answer here...'}
-              className={`w-full p-4 ${roundedClass} border-2 bg-white/90 text-sm font-medium focus:outline-none focus:ring-2 disabled:opacity-60 disabled:cursor-not-allowed`}
+              className={`w-full p-4 ${roundedClass} border-2 bg-white/90 text-base sm:text-sm font-medium focus:outline-none focus:ring-2 disabled:opacity-60 disabled:cursor-not-allowed touch-manipulation`}
               style={{
                 borderColor: quiz.theme.borderColor,
                 color: quiz.theme.textColor,
@@ -656,7 +726,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
               value={val || ''}
               onChange={(e) => handleOptionSelect(question.id, e.target.value, false)}
               placeholder={isInputDisabled ? 'Time has expired' : 'Type your detailed response here...'}
-              className={`w-full p-4 ${roundedClass} border-2 bg-white/90 text-sm font-medium focus:outline-none focus:ring-2 resize-none disabled:opacity-60 disabled:cursor-not-allowed`}
+              className={`w-full p-4 ${roundedClass} border-2 bg-white/90 text-base sm:text-sm font-medium focus:outline-none focus:ring-2 resize-none disabled:opacity-60 disabled:cursor-not-allowed touch-manipulation`}
               style={{
                 borderColor: quiz.theme.borderColor,
                 color: quiz.theme.textColor,
@@ -747,7 +817,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
 
   return (
     <div
-      className={`min-h-screen ${fontClass} relative flex flex-col justify-between transition-colors`}
+      className={`min-h-screen min-h-[100dvh] ${fontClass} relative flex flex-col justify-between transition-colors safe-pb`}
       style={{
         backgroundColor: quiz.theme.backgroundColor,
         color: quiz.theme.textColor,
@@ -759,23 +829,26 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
         style={{ color: quiz.theme.textColor }}
       />
 
+      {/* Live Realistic Atmospheric Effects depending on template */}
+      {showAtmosphere && (
+        <TemplateLiveAtmosphere
+          themeId={quiz.theme.id}
+          themeName={quiz.theme.name}
+          primaryColor={quiz.theme.primaryColor}
+          backgroundColor={quiz.theme.backgroundColor}
+          isDark={quiz.theme.isDark}
+        />
+      )}
+
       {/* Top Banner: Timer & Progress (Step by Step) */}
-      <header className="relative z-20 w-full max-w-4xl mx-auto px-4 sm:px-6 pt-6 pb-2 flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      <header className="relative z-20 w-full max-w-4xl mx-auto px-3 sm:px-6 pt-3 sm:pt-6 pb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {isPreviewMode && (
             <span className="px-2.5 py-1 text-[11px] font-bold bg-amber-500 text-black rounded-lg flex items-center gap-1 shadow-xs">
               <EyeOff className="w-3.5 h-3.5" />
               Preview Mode
             </span>
           )}
-          <span className="text-xs font-semibold uppercase tracking-wider opacity-60">
-            {quiz.title}
-          </span>
-          <span className="text-xs opacity-30">•</span>
-          <span className="text-xs font-medium opacity-60 flex items-center gap-1">
-            <User className="w-3 h-3 opacity-70" />
-            {creatorDisplayName}
-          </span>
         </div>
 
         {/* Countdown timer pill */}
@@ -1202,7 +1275,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                             value={respondentName}
                             onChange={(e) => setRespondentName(e.target.value)}
                             placeholder=""
-                            className={`w-full p-3.5 ${roundedClass} border text-sm font-medium transition-all focus:outline-none focus:ring-2 ${
+                            className={`w-full p-3.5 ${roundedClass} border text-base sm:text-sm font-medium transition-all focus:outline-none focus:ring-2 touch-manipulation ${
                               quiz.theme.isDark 
                                 ? 'bg-zinc-900/90 text-white border-zinc-700 placeholder:text-zinc-500 focus:ring-zinc-400' 
                                 : 'bg-white text-zinc-900 border-zinc-300 placeholder:text-zinc-400 focus:ring-zinc-900'
@@ -1221,7 +1294,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                             <select
                               value={respondentSection}
                               onChange={(e) => setRespondentSection(e.target.value)}
-                              className={`w-full p-3.5 ${roundedClass} border text-sm font-medium transition-all focus:outline-none focus:ring-2 cursor-pointer ${
+                              className={`w-full p-3.5 ${roundedClass} border text-base sm:text-sm font-medium transition-all focus:outline-none focus:ring-2 cursor-pointer touch-manipulation ${
                                 quiz.theme.isDark 
                                   ? 'bg-zinc-900 text-white border-zinc-700 focus:ring-zinc-400' 
                                   : 'bg-white text-zinc-900 border-zinc-300 focus:ring-zinc-900'
@@ -1238,7 +1311,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                               value={respondentSection}
                               onChange={(e) => setRespondentSection(e.target.value)}
                               placeholder=""
-                              className={`w-full p-3.5 ${roundedClass} border text-sm font-medium transition-all focus:outline-none focus:ring-2 ${
+                              className={`w-full p-3.5 ${roundedClass} border text-base sm:text-sm font-medium transition-all focus:outline-none focus:ring-2 touch-manipulation ${
                                 quiz.theme.isDark 
                                   ? 'bg-zinc-900/90 text-white border-zinc-700 placeholder:text-zinc-500 focus:ring-zinc-400' 
                                   : 'bg-white text-zinc-900 border-zinc-300 placeholder:text-zinc-400 focus:ring-zinc-900'
@@ -1257,7 +1330,14 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                             </label>
                             {quiz.settings.restrictToAllowedEmails && (
                               <span className="text-[10px] text-amber-600 font-semibold flex items-center gap-1">
-                                <Lock className="w-3 h-3" /> Authorized email list
+                                <Lock className="w-3 h-3" />
+                                {(() => {
+                                  const rules = (quiz.settings.allowedEmails || []).filter(r => r.startsWith('@') || !r.includes('@'));
+                                  if (rules.length > 0) {
+                                    return `Restricted to: ${rules.map(r => r.startsWith('@') ? r : `@${r}`).join(', ')}`;
+                                  }
+                                  return 'Authorized list only';
+                                })()}
                               </span>
                             )}
                           </div>
@@ -1265,8 +1345,12 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                             type="email"
                             value={respondentEmail}
                             onChange={(e) => setRespondentEmail(e.target.value)}
-                            placeholder=""
-                            className={`w-full p-3.5 ${roundedClass} border text-sm font-medium transition-all focus:outline-none focus:ring-2 ${
+                            placeholder={
+                              quiz.settings.restrictToAllowedEmails && (quiz.settings.allowedEmails || []).some(r => r.startsWith('@') || !r.includes('@'))
+                                ? `student${(quiz.settings.allowedEmails || []).find(r => r.startsWith('@') || !r.includes('@'))?.startsWith('@') ? (quiz.settings.allowedEmails || []).find(r => r.startsWith('@') || !r.includes('@')) : '@' + (quiz.settings.allowedEmails || []).find(r => r.startsWith('@') || !r.includes('@'))}`
+                                : 'student@school.edu'
+                            }
+                            className={`w-full p-3.5 ${roundedClass} border text-base sm:text-sm font-medium transition-all focus:outline-none focus:ring-2 touch-manipulation ${
                               quiz.theme.isDark 
                                 ? 'bg-zinc-900/90 text-white border-zinc-700 placeholder:text-zinc-500 focus:ring-zinc-400' 
                                 : 'bg-white text-zinc-900 border-zinc-300 placeholder:text-zinc-400 focus:ring-zinc-900'
@@ -1455,7 +1539,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                         type="button"
                         onClick={handlePrevStep}
                         disabled={currentStep <= 1 || isQuestionLocked || isTimeUp}
-                        className="px-4 py-2 text-xs font-semibold rounded-xl border hover:bg-black/5 disabled:opacity-30 transition-colors flex items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed"
+                        className="px-4 py-2 min-h-[42px] text-xs font-semibold rounded-xl border hover:bg-black/5 disabled:opacity-30 transition-colors flex items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed touch-manipulation"
                         style={{ borderColor: quiz.theme.borderColor }}
                       >
                         <ArrowLeft className="w-3.5 h-3.5" />
@@ -1466,7 +1550,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                         type="button"
                         onClick={handleNextStep}
                         disabled={isSubmitting || isTimeUp || isQuestionLocked}
-                        className={`px-6 py-2.5 ${roundedClass} text-xs font-bold shadow-sm hover:scale-[1.02] active:scale-[0.99] transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed`}
+                        className={`px-6 py-2.5 min-h-[42px] ${roundedClass} text-xs font-bold shadow-sm hover:scale-[1.02] active:scale-[0.99] transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation`}
                         style={{
                           backgroundColor: quiz.theme.primaryColor,
                           color: quiz.theme.primaryTextColor,
@@ -1591,7 +1675,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                           value={respondentName}
                           onChange={(e) => setRespondentName(e.target.value)}
                           placeholder=""
-                          className={`w-full p-2.5 ${roundedClass} border text-xs focus:outline-none ${
+                          className={`w-full p-2.5 ${roundedClass} border text-base sm:text-xs focus:outline-none touch-manipulation ${
                             quiz.theme.isDark ? 'bg-zinc-900 text-white border-zinc-700' : 'bg-white text-zinc-900 border-zinc-300'
                           }`}
                         />
@@ -1606,7 +1690,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                           <select
                             value={respondentSection}
                             onChange={(e) => setRespondentSection(e.target.value)}
-                            className={`w-full p-2.5 ${roundedClass} border text-xs focus:outline-none cursor-pointer ${
+                            className={`w-full p-2.5 ${roundedClass} border text-base sm:text-xs focus:outline-none cursor-pointer touch-manipulation ${
                               quiz.theme.isDark ? 'bg-zinc-900 text-white border-zinc-700' : 'bg-white text-zinc-900 border-zinc-300'
                             }`}
                           >
@@ -1621,7 +1705,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                             value={respondentSection}
                             onChange={(e) => setRespondentSection(e.target.value)}
                             placeholder=""
-                            className={`w-full p-2.5 ${roundedClass} border text-xs focus:outline-none ${
+                            className={`w-full p-2.5 ${roundedClass} border text-base sm:text-xs focus:outline-none touch-manipulation ${
                               quiz.theme.isDark ? 'bg-zinc-900 text-white border-zinc-700' : 'bg-white text-zinc-900 border-zinc-300'
                             }`}
                           />
@@ -1638,7 +1722,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                           value={respondentEmail}
                           onChange={(e) => setRespondentEmail(e.target.value)}
                           placeholder=""
-                          className={`w-full p-2.5 ${roundedClass} border text-xs focus:outline-none ${
+                          className={`w-full p-2.5 ${roundedClass} border text-base sm:text-xs focus:outline-none touch-manipulation ${
                             quiz.theme.isDark ? 'bg-zinc-900 text-white border-zinc-700' : 'bg-white text-zinc-900 border-zinc-300'
                           }`}
                         />
@@ -1698,12 +1782,12 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                   )}
 
                   {/* Submit Button */}
-                  <div className="pt-2 flex justify-end">
+                  <div className="pt-2 flex justify-stretch sm:justify-end">
                     <button
                       type="button"
                       onClick={() => handleSubmit(false)}
                       disabled={isSubmitting || isTimeUp}
-                      className={`px-8 py-3.5 ${roundedClass} text-sm font-bold shadow-md hover:scale-[1.02] active:scale-[0.99] transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed`}
+                      className={`w-full sm:w-auto justify-center px-8 py-3.5 min-h-[44px] ${roundedClass} text-sm font-bold shadow-md hover:scale-[1.02] active:scale-[0.99] transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation`}
                       style={{
                         backgroundColor: quiz.theme.primaryColor,
                         color: quiz.theme.primaryTextColor,
@@ -1720,11 +1804,6 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
 
         </div>
       </main>
-
-      {/* Footer */}
-      <footer className="relative z-20 py-4 text-center text-xs opacity-50">
-        Powered by Quiz Aesthetic Studio • Firebase Backend
-      </footer>
     </div>
   );
 };

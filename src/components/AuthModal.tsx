@@ -95,8 +95,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
         {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b border-zinc-100 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-zinc-900 text-white flex items-center justify-center shadow-sm">
-              <Sparkles className="w-5 h-5" />
+            <div className="w-9 h-9 rounded-xl bg-white border border-zinc-200 overflow-hidden flex items-center justify-center shadow-xs p-0.5 shrink-0">
+              <img 
+                src="/dq_logo.jpg" 
+                alt="D•Q" 
+                className="w-full h-full object-contain rounded-lg"
+                referrerPolicy="no-referrer"
+              />
             </div>
             <div>
               <h2 className="text-lg font-bold text-zinc-900 tracking-tight">

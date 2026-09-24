@@ -733,7 +733,7 @@ export const QuizResponsesView: React.FC<QuizResponsesViewProps> = ({
           onClick={() => setShowSpreadsheetModal(false)}
         >
           <div 
-            className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl border border-zinc-200 space-y-6"
+            className="bg-white rounded-3xl max-w-xl w-full max-h-[90dvh] overflow-y-auto p-5 sm:p-8 shadow-2xl border border-zinc-200 space-y-6"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-4 border-b border-zinc-100">

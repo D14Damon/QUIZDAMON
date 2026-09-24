@@ -5,7 +5,6 @@ import { UserProfile } from '../types';
 import { 
   Sparkles, 
   Layout, 
-  PlusCircle, 
   LogOut, 
   LogIn, 
   Sliders, 
@@ -22,7 +21,7 @@ interface NavbarProps {
   activeQuizTitle?: string;
   onNavigate: (view: 'dashboard' | 'builder' | 'responses' | 'taker') => void;
   onOpenAuth: () => void;
-  onCreateNewQuiz: () => void;
+  onCreateNewQuiz?: () => void;
   onOpenProfile: () => void;
 }
 
@@ -110,16 +109,8 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="flex items-center gap-3">
           {user ? (
             <>
-              <button
-                onClick={onCreateNewQuiz}
-                className="hidden sm:flex items-center gap-1.5 px-3.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 active:bg-zinc-950 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer"
-              >
-                <PlusCircle className="w-4 h-4" />
-                New Quiz
-              </button>
-
               {/* User badge with profile click */}
-              <div className="flex items-center gap-2 pl-2 border-l border-zinc-200">
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={onOpenProfile}

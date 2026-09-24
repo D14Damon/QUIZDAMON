@@ -43,4 +43,24 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
+  /* Mobile and touch optimization */
+  .touch-manipulation {
+    touch-action: manipulation;
+  }
+  .tap-highlight-transparent {
+    -webkit-tap-highlight-color: transparent;
+  }
+  .safe-pb {
+    padding-bottom: env(safe-area-inset-bottom, 1rem);
+  }
+  .safe-pt {
+    padding-top: env(safe-area-inset-top, 0rem);
+  }
+}
+
+html, body {
+  -webkit-tap-highlight-color: transparent;
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
 }

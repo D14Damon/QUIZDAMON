@@ -112,19 +112,19 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_50%_110%,rgba(24,24,27,0.8),rgba(9,9,11,1))] pointer-events-none" />
 
       <div className="relative z-10 w-full max-w-md my-auto">
-        {/* Brand Header with D•Q logo */}
+        {/* Brand Header with logo */}
         <div className="text-center space-y-2.5 mb-6">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white shadow-2xl mx-auto mb-2 border border-zinc-700 p-1.5 hover:scale-105 transition-transform">
             <img 
               src="/dq_logo.jpg" 
-              alt="D•Q Logo" 
+              alt="Quizy Logo" 
               className="w-full h-full object-contain rounded-xl"
               referrerPolicy="no-referrer"
             />
           </div>
 
           <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight font-modern drop-shadow-sm">
-            𝓓𝓪𝓶𝓸𝓷-𝓠𝓤𝓘𝓩
+            Quizy
           </h1>
         </div>
 
@@ -262,7 +262,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                 <span className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-zinc-950 border-t-transparent" />
               ) : (
                 <>
-                  <span>{isSignUp ? 'Create 𝓓𝓪𝓶𝓸𝓷-𝓠𝓤𝓘𝓩 Account' : 'Sign In to 𝓓𝓪𝓶𝓸𝓷-𝓠𝓤𝓘𝓩'}</span>
+                  <span>{isSignUp ? 'Create Quizy Account' : 'Sign In to Quizy'}</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}

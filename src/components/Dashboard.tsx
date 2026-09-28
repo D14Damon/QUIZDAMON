@@ -221,7 +221,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <div className="w-16 h-16 mx-auto rounded-2xl bg-white border border-zinc-200 overflow-hidden flex items-center justify-center shadow-sm p-1.5 hover:scale-105 transition-transform">
               <img 
                 src="/dq_logo.jpg" 
-                alt="Damon-QUIZ Logo" 
+                alt="Quizy Logo" 
                 className="w-full h-full object-contain rounded-xl"
                 referrerPolicy="no-referrer"
               />

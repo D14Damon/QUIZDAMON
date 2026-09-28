@@ -249,7 +249,7 @@ export default function App() {
       return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-50 p-4">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-3 border-zinc-900 border-t-transparent" />
-          <p className="text-sm text-zinc-500 mt-3 font-mono">Loading 𝓓𝓪𝓶𝓸𝓷-𝓠𝓤𝓘𝓩...</p>
+          <p className="text-sm text-zinc-500 mt-3 font-mono">Loading Quizy...</p>
         </div>
       );
     }
@@ -271,7 +271,7 @@ export default function App() {
               }}
               className="px-4 py-2 bg-zinc-900 text-white text-xs font-semibold rounded-xl cursor-pointer"
             >
-              Return to 𝓓𝓪𝓶𝓸𝓷-𝓠𝓤𝓘𝓩 Studio
+              Return to Quizy Studio
             </button>
           </div>
         </div>
@@ -298,7 +298,7 @@ export default function App() {
       <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-50 p-4">
         <div className="inline-block animate-spin rounded-full h-9 w-9 border-3 border-zinc-900 border-t-transparent" />
         <p className="text-xs text-zinc-500 mt-3 font-semibold tracking-wide uppercase">
-          Initializing 𝓓𝓪𝓶𝓸𝓷-𝓠𝓤𝓘𝓩...
+          Initializing Quizy...
         </p>
       </div>
     );

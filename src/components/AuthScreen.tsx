@@ -117,14 +117,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white shadow-2xl mx-auto mb-2 border border-zinc-700 p-1.5 hover:scale-105 transition-transform">
             <img 
               src="/dq_logo.jpg" 
-              alt="Quizy Logo" 
+              alt="Quizzy Logo" 
               className="w-full h-full object-contain rounded-xl"
               referrerPolicy="no-referrer"
             />
           </div>
 
           <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight font-modern drop-shadow-sm">
-            Quizy
+            Quizzy
           </h1>
         </div>
 
@@ -262,7 +262,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
                 <span className="inline-block animate-spin rounded-full h-4 w-4 border-2 border-zinc-950 border-t-transparent" />
               ) : (
                 <>
-                  <span>{isSignUp ? 'Create Quizy Account' : 'Sign In to Quizy'}</span>
+                  <span>{isSignUp ? 'Create Quizzy Account' : 'Sign In to Quizzy'}</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}

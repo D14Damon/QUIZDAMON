@@ -277,7 +277,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 className="w-full p-3 text-sm border border-zinc-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-zinc-900 font-medium text-zinc-900"
               />
               <p className="text-[11px] text-zinc-400 mt-1">
-                This name will appear on all quizzes you create in Quizy.
+                This name will appear on all quizzes you create in Quizzy.
               </p>
             </div>
 

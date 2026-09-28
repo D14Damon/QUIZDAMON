@@ -19,9 +19,9 @@ export const QuizLimitModal: React.FC<QuizLimitModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/60 backdrop-blur-sm animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-zinc-950/60 backdrop-blur-sm animate-in fade-in duration-150">
       <div 
-        className="bg-white border border-zinc-200 rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl space-y-5 animate-in zoom-in-95 duration-200"
+        className="bg-white border border-zinc-200 rounded-3xl p-5 sm:p-7 max-w-md w-full max-h-[90dvh] overflow-y-auto shadow-2xl space-y-5 animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

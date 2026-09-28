@@ -129,9 +129,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in">
       <div 
-        className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-zinc-200 overflow-hidden"
+        className="relative w-full max-w-lg max-h-[90dvh] overflow-y-auto bg-white rounded-3xl shadow-2xl border border-zinc-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -142,11 +142,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </div>
             <div>
               <h2 className="text-lg font-bold text-zinc-900 tracking-tight">
-                Account & Profile Settings
+                Profile Settings
               </h2>
-              <p className="text-xs text-zinc-500">
-                Update your display name & custom 500×500 avatar in 𝓓𝓪𝓶𝓸𝓷-𝓠𝓤𝓘𝓩
-              </p>
             </div>
           </div>
           <button
@@ -178,11 +175,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-zinc-800 uppercase tracking-wider">
-                Profile Avatar (500 × 500 px)
+                Profile Avatar
               </label>
-              <span className="text-[11px] font-mono font-medium text-zinc-400 bg-zinc-100 px-2 py-0.5 rounded-md">
-                Base64 String in Firestore
-              </span>
             </div>
 
             <div className="flex flex-col sm:flex-row items-center gap-5 p-4 rounded-2xl bg-zinc-50 border border-zinc-200/80">
@@ -301,12 +295,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           </div>
 
           {/* Footer Actions */}
-          <div className="pt-2 border-t border-zinc-100 flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-[11px] text-zinc-400">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Saved securely in your Firebase account</span>
-            </div>
-
+          <div className="pt-2 border-t border-zinc-100 flex items-center justify-end">
             <div className="flex items-center gap-2">
               <button
                 type="button"

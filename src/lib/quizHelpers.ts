@@ -96,6 +96,8 @@ export function calculateQuizResults(quiz: Quiz, answers: Record<string, any>, i
   const percentage = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 100;
   const isPassed = percentage >= (quiz.settings.passPercentage || 0);
 
+  const isTimedOut = !!isTimedOutSubmission || unansweredCount > 0;
+
   return {
     totalScore,
     maxScore,
@@ -104,7 +106,8 @@ export function calculateQuizResults(quiz: Quiz, answers: Record<string, any>, i
     correctCount,
     wrongCount,
     unansweredCount,
-    timedOut: !!isTimedOutSubmission || unansweredCount > 0,
+    timedOut: isTimedOut,
+    isTimedOut,
     evaluatedAnswers,
   };
 }

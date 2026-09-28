@@ -843,6 +843,21 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
       {/* Top Banner: Timer & Progress (Step by Step) */}
       <header className="relative z-20 w-full max-w-4xl mx-auto px-3 sm:px-6 pt-3 sm:pt-6 pb-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 flex-wrap">
+          {onExitPreview && (
+            <button
+              type="button"
+              onClick={onExitPreview}
+              className="px-3 py-1.5 text-xs font-semibold rounded-xl border shadow-2xs flex items-center gap-1.5 transition-all hover:opacity-90 cursor-pointer touch-manipulation"
+              style={{
+                backgroundColor: quiz.theme.cardBackgroundColor,
+                color: quiz.theme.textColor,
+                borderColor: quiz.theme.borderColor,
+              }}
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>{isPreviewMode ? 'Exit Preview' : 'Back to Dashboard'}</span>
+            </button>
+          )}
           {isPreviewMode && (
             <span className="px-2.5 py-1 text-[11px] font-bold bg-amber-500 text-black rounded-lg flex items-center gap-1 shadow-xs">
               <EyeOff className="w-3.5 h-3.5" />

@@ -76,6 +76,7 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
   const [activeTab, setActiveTab] = useState<'questions' | 'design' | 'settings'>('questions');
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [showTimerModal, setShowTimerModal] = useState(false);
@@ -295,6 +296,7 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
   const handleSave = async () => {
     try {
       setIsSaving(true);
+      setSaveError(null);
       const quizToSave = getQuizWithPendingAllowedEmails();
       if (allowedEmailInput.trim()) {
         setQuiz(quizToSave);
@@ -314,7 +316,7 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
       if (err?.message?.includes('limit') || err?.message?.includes('15')) {
         setShowLimitModal(true);
       } else {
-        alert(err?.message || 'Error saving quiz to Firestore. Check console for details.');
+        setSaveError(err?.message || 'Error saving quiz to Firestore.');
       }
     } finally {
       setIsSaving(false);
@@ -662,6 +664,21 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
 
         {/* Main Workspace Content Area */}
         <main className="flex-1 min-w-0 w-full max-w-4xl">
+          {saveError && (
+            <div className="mb-4 p-3.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl flex items-center justify-between text-xs font-semibold shadow-2xs animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{saveError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSaveError(null)}
+                className="text-rose-600 hover:text-rose-900 p-1 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
 
         {/* ================= QUESTIONS TAB ================= */}
         {activeTab === 'questions' && (

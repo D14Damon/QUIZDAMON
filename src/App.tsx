@@ -233,8 +233,8 @@ export default function App() {
 
   // Test / take quiz
   const handleTakeQuiz = (quizId: string) => {
-    const target = quizzes.find((q) => q.id === quizId) || activeQuiz;
-    if (target && target.id === quizId) {
+    const target = quizzes.find((q) => q.id === quizId || q.customSlug === quizId) || activeQuiz;
+    if (target && (target.id === quizId || target.customSlug === quizId)) {
       setSharedQuiz(target);
       setCurrentView('taker');
     } else {
@@ -266,6 +266,7 @@ export default function App() {
             <button
               onClick={() => {
                 window.history.pushState({}, '', window.location.pathname);
+                setSharedQuizId(null);
                 setCurrentView('dashboard');
               }}
               className="px-4 py-2 bg-zinc-900 text-white text-xs font-semibold rounded-xl cursor-pointer"
@@ -280,6 +281,10 @@ export default function App() {
     return (
       <QuizTaker
         quiz={sharedQuiz}
+        onExitPreview={!sharedQuizId && user ? () => {
+          loadUserQuizzes(user.uid);
+          setCurrentView('dashboard');
+        } : undefined}
         onSubmissionComplete={() => {
           if (user) loadUserQuizzes(user.uid);
         }}

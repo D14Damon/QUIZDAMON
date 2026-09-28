@@ -405,8 +405,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
       {/* Choose Template Modal */}
       {showTemplatesModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 shadow-2xl border border-zinc-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90dvh] overflow-y-auto p-4 sm:p-8 shadow-2xl border border-zinc-200">
             <div className="flex items-center justify-between pb-4 border-b border-zinc-100">
               <div>
                 <h3 className="text-xl font-bold text-zinc-900 tracking-tight font-modern">

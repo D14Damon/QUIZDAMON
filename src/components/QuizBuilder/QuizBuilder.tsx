@@ -47,12 +47,20 @@ import {
   Link2,
   Globe,
   AlertTriangle,
-  CalendarClock
+  CalendarClock,
+  QrCode,
+  FileText,
+  Image as ImageIcon,
+  Shuffle,
+  ShieldAlert,
+  Award
 } from 'lucide-react';
 import { QuizTaker } from '../QuizTaker/QuizTaker';
 import { QuizLimitModal } from '../QuizLimitModal';
 import { TimerConfigModal } from './TimerConfigModal';
 import { DeadlineConfigModal } from './DeadlineConfigModal';
+import { BulkImportModal } from './BulkImportModal';
+import { QRCodeModal } from '../QRCodeModal';
 import { formatQuizSlug, generateDefaultQuizSlug } from '../../lib/quizHelpers';
 
 interface QuizBuilderProps {
@@ -82,9 +90,66 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
   const [showTimerModal, setShowTimerModal] = useState(false);
   const [showDeadlineModal, setShowDeadlineModal] = useState(false);
   const [showLivePreviewModal, setShowLivePreviewModal] = useState(false);
+  const [showBulkImportModal, setShowBulkImportModal] = useState(false);
+  const [showQRCodeModal, setShowQRCodeModal] = useState(false);
   const [previewDevice, setPreviewDevice] = useState<'desktop' | 'mobile'>('desktop');
   const [newSectionInput, setNewSectionInput] = useState('');
   const [allowedEmailInput, setAllowedEmailInput] = useState('');
+  const [shortAnswerInputs, setShortAnswerInputs] = useState<Record<string, string>>({});
+  const [imageUrlPromptQuestionId, setImageUrlPromptQuestionId] = useState<string | null>(null);
+  const [imageUrlInputValue, setImageUrlInputValue] = useState('');
+
+  const handleQuestionImageUpload = (qId: string, file?: File | null) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxDim = 800;
+        let w = img.width;
+        let h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+          } else {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+          }
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, w, h);
+          const compressed = canvas.toDataURL('image/jpeg', 0.78);
+          updateQuestion(qId, { imageUrl: compressed });
+        }
+      };
+      if (typeof ev.target?.result === 'string') {
+        img.src = ev.target.result;
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleAddAcceptedAnswer = (qId: string) => {
+    const raw = (shortAnswerInputs[qId] || '').trim();
+    if (!raw) return;
+    const q = quiz.questions.find((x) => x.id === qId);
+    if (!q) return;
+    const existing = q.acceptedAnswers || [];
+    const parts = raw.split(/[|,]/).map((s) => s.trim()).filter(Boolean);
+    const next = [...existing];
+    for (const p of parts) {
+      if (!next.some((a) => a.toLowerCase() === p.toLowerCase())) {
+        next.push(p);
+      }
+    }
+    updateQuestion(qId, { acceptedAnswers: next });
+    setShortAnswerInputs((prev) => ({ ...prev, [qId]: '' }));
+  };
 
   const handleAddAllowedEntry = (customInput?: string) => {
     const raw = (customInput !== undefined ? customInput : allowedEmailInput).trim();
@@ -396,6 +461,15 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
             >
               <Eye className="w-3.5 h-3.5 text-zinc-600 shrink-0" />
               <span className="whitespace-nowrap"><span className="hidden sm:inline">Live </span>Preview</span>
+            </button>
+
+            <button
+              onClick={() => setShowQRCodeModal(true)}
+              className="h-8.5 flex items-center gap-1.5 px-2.5 sm:px-3 bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-800 text-xs font-semibold rounded-xl transition-colors cursor-pointer whitespace-nowrap shrink-0 select-none touch-manipulation"
+              title="Classroom QR Code & Link"
+            >
+              <QrCode className="w-3.5 h-3.5 text-zinc-600 shrink-0" />
+              <span className="hidden sm:inline whitespace-nowrap">QR Code</span>
             </button>
 
             <button
@@ -779,13 +853,44 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
 
                   {/* Question Title & Subtitle */}
                   <div className="space-y-2">
-                    <input
-                      type="text"
-                      value={question.title}
-                      onChange={(e) => updateQuestion(question.id, { title: e.target.value })}
-                      placeholder="Write your question here..."
-                      className="w-full text-base font-bold text-zinc-900 placeholder:text-zinc-400 border border-transparent hover:border-zinc-200 focus:border-zinc-900 rounded-lg px-2.5 py-1.5 focus:outline-none"
-                    />
+                    <div className="flex items-start gap-2">
+                      <input
+                        type="text"
+                        value={question.title}
+                        onChange={(e) => updateQuestion(question.id, { title: e.target.value })}
+                        placeholder="Write your question here..."
+                        className="flex-1 text-base font-bold text-zinc-900 placeholder:text-zinc-400 border border-transparent hover:border-zinc-200 focus:border-zinc-900 rounded-lg px-2.5 py-1.5 focus:outline-none"
+                      />
+                      {/* Attach Image Button */}
+                      <label
+                        title="Upload image for this question"
+                        className="px-2.5 py-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer shrink-0 transition-colors"
+                      >
+                        <ImageIcon className="w-3.5 h-3.5 text-zinc-600" />
+                        <span className="hidden sm:inline">Image</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => handleQuestionImageUpload(question.id, e.target.files?.[0])}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (imageUrlPromptQuestionId === question.id) {
+                            setImageUrlPromptQuestionId(null);
+                          } else {
+                            setImageUrlPromptQuestionId(question.id);
+                            setImageUrlInputValue(question.imageUrl?.startsWith('http') ? question.imageUrl : '');
+                          }
+                        }}
+                        className="px-2 py-1.5 bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-600 rounded-lg text-[11px] font-semibold cursor-pointer shrink-0"
+                        title="Paste Image URL"
+                      >
+                        URL
+                      </button>
+                    </div>
                     <input
                       type="text"
                       value={question.description || ''}
@@ -793,7 +898,123 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
                       placeholder="Optional hint or explanation..."
                       className="w-full text-xs text-zinc-500 placeholder:text-zinc-300 border border-transparent hover:border-zinc-200 focus:border-zinc-900 rounded-lg px-2.5 py-1 focus:outline-none"
                     />
+
+                    {/* Optional Image URL Input */}
+                    {imageUrlPromptQuestionId === question.id && (
+                      <div className="flex items-center gap-2 p-2.5 bg-zinc-50 border border-zinc-200 rounded-xl">
+                        <input
+                          type="url"
+                          value={imageUrlInputValue}
+                          onChange={(e) => setImageUrlInputValue(e.target.value)}
+                          placeholder="Paste direct image URL (https://...)"
+                          className="flex-1 text-xs bg-white border border-zinc-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-zinc-900"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (imageUrlInputValue.trim()) {
+                              updateQuestion(question.id, { imageUrl: imageUrlInputValue.trim() });
+                            }
+                            setImageUrlPromptQuestionId(null);
+                          }}
+                          className="px-3 py-1.5 bg-zinc-900 text-white text-xs font-semibold rounded-lg cursor-pointer"
+                        >
+                          Attach
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setImageUrlPromptQuestionId(null)}
+                          className="text-zinc-400 hover:text-zinc-700 p-1 cursor-pointer"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Attached Question Image Preview */}
+                    {question.imageUrl && (
+                      <div className="relative inline-block mt-2 rounded-xl overflow-hidden border border-zinc-200 bg-zinc-50 p-1.5 group/img">
+                        <img
+                          src={question.imageUrl}
+                          alt="Question attachment"
+                          className="max-h-48 w-auto object-contain rounded-lg"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => updateQuestion(question.id, { imageUrl: undefined })}
+                          className="absolute top-2.5 right-2.5 bg-black/75 hover:bg-rose-600 text-white p-1.5 rounded-lg text-xs flex items-center gap-1 shadow-sm transition-colors cursor-pointer"
+                          title="Remove image"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
+
+                  {/* Short-Text Auto-Grading Answer Key */}
+                  {question.type === 'short-text' && (
+                    <div className="p-3.5 bg-emerald-50/50 border border-emerald-200/80 rounded-xl space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-900 flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          Accepted Correct Answers (Auto-Graded, Case-Insensitive)
+                        </span>
+                        <span className="text-[10px] text-emerald-700 font-medium">
+                          {(question.acceptedAnswers || []).length === 0 ? 'Open-ended (All answers get credit)' : 'Strict Auto-Grade Active'}
+                        </span>
+                      </div>
+
+                      {(question.acceptedAnswers || []).length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {(question.acceptedAnswers || []).map((ans, aIdx) => (
+                            <span
+                              key={aIdx}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-emerald-300 text-emerald-900 text-xs font-semibold rounded-lg shadow-2xs"
+                            >
+                              <span>{ans}</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const curr = question.acceptedAnswers || [];
+                                  updateQuestion(question.id, {
+                                    acceptedAnswers: curr.filter((_, i) => i !== aIdx),
+                                  });
+                                }}
+                                className="text-emerald-400 hover:text-rose-600 cursor-pointer"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={shortAnswerInputs[question.id] || ''}
+                          onChange={(e) =>
+                            setShortAnswerInputs((prev) => ({ ...prev, [question.id]: e.target.value }))
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleAddAcceptedAnswer(question.id);
+                            }
+                          }}
+                          placeholder="Add accepted answer (e.g. Mitochondria) and press Enter..."
+                          className="flex-1 text-xs bg-white border border-emerald-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-emerald-600"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleAddAcceptedAnswer(question.id)}
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg cursor-pointer shrink-0"
+                        >
+                          Add Key
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Options Editor (for Multiple Choice, Multiple Select, True/False) */}
                   {(question.type === 'multiple-choice' || question.type === 'multiple-select' || question.type === 'true-false') && (
@@ -990,6 +1211,14 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
                 className="px-3.5 py-2.5 bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-800 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
               >
                 + Star Rating
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowBulkImportModal(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-900 text-xs font-bold rounded-xl transition-colors cursor-pointer ml-auto"
+              >
+                <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Bulk Import (Paste Text)</span>
               </button>
             </div>
           </div>
@@ -1433,27 +1662,37 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
 
               {/* System Provided URL Box */}
               <div className="p-4 bg-zinc-50 border border-zinc-200 rounded-xl space-y-2.5">
-                <div className="flex items-center justify-between text-[11px]">
+                <div className="flex items-center justify-between text-[11px] flex-wrap gap-2">
                   <span className="font-semibold text-zinc-500 uppercase tracking-wider">
                     System Shareable Link
                   </span>
-                  <button
-                    type="button"
-                    onClick={copyShareLink}
-                    className="font-semibold text-zinc-800 hover:text-black flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-zinc-100 border border-zinc-200 rounded-lg shadow-2xs cursor-pointer transition-colors"
-                  >
-                    {copiedLink ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-emerald-600" />
-                        <span className="text-emerald-700">Link Copied!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3.5 h-3.5 text-zinc-600" />
-                        <span>Copy Link</span>
-                      </>
-                    )}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowQRCodeModal(true)}
+                      className="font-semibold text-zinc-800 hover:text-black flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-zinc-100 border border-zinc-200 rounded-lg shadow-2xs cursor-pointer transition-colors"
+                    >
+                      <QrCode className="w-3.5 h-3.5 text-zinc-600" />
+                      <span>Classroom QR Code</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={copyShareLink}
+                      className="font-semibold text-zinc-800 hover:text-black flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-zinc-100 border border-zinc-200 rounded-lg shadow-2xs cursor-pointer transition-colors"
+                    >
+                      {copiedLink ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="text-emerald-700">Link Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5 text-zinc-600" />
+                          <span>Copy Link</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="p-2.5 bg-white border border-zinc-200 rounded-lg shadow-2xs">
@@ -1465,6 +1704,168 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
                 <p className="text-[11px] text-zinc-500 leading-relaxed">
                   Anyone who clicks or opens this link can immediately participate and submit answers. Responses are saved automatically to your dashboard.
                 </p>
+              </div>
+
+              {/* Quiz Availability Status & Optional Access PIN */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                <div className="p-4 bg-zinc-50 border border-zinc-200 rounded-xl flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-zinc-900 block">
+                      Quiz Availability Status
+                    </span>
+                    <span className="text-[11px] text-zinc-500">
+                      {quiz.status === 'draft'
+                        ? 'Closed — Respondents cannot take the quiz'
+                        : 'Live — Accepting respondent submissions'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateQuizField('status', quiz.status === 'draft' ? 'published' : 'draft')
+                    }
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors cursor-pointer ${
+                      quiz.status === 'draft'
+                        ? 'bg-zinc-200 text-zinc-700 border-zinc-300'
+                        : 'bg-emerald-600 text-white border-emerald-600'
+                    }`}
+                  >
+                    {quiz.status === 'draft' ? 'Closed (Draft)' : 'Published (Live)'}
+                  </button>
+                </div>
+
+                <div className="p-4 bg-zinc-50 border border-zinc-200 rounded-xl space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-zinc-900 flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5 text-amber-600" />
+                      Access Passcode / PIN (Optional)
+                    </span>
+                    {quiz.settings.accessCode && (
+                      <button
+                        type="button"
+                        onClick={() => updateSettingsField('accessCode', '')}
+                        className="text-[10px] text-zinc-400 hover:text-rose-600 cursor-pointer"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    value={quiz.settings.accessCode || ''}
+                    onChange={(e) => updateSettingsField('accessCode', e.target.value)}
+                    placeholder="Leave blank for no PIN (e.g. BIO101)"
+                    className="w-full text-xs font-mono bg-white border border-zinc-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-zinc-900"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Randomization & Anti-Cheating Proctoring Card */}
+            <div className="p-6 bg-white border border-zinc-200 rounded-2xl shadow-xs space-y-5">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-indigo-600" />
+                <div>
+                  <h3 className="text-base font-bold text-zinc-900 font-modern">
+                    Randomization & Anti-Cheating Proctoring
+                  </h3>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    Prevent answer copying by shuffling questions/choices and detecting browser tab switches.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label className="flex items-center justify-between p-4 bg-zinc-50 border border-zinc-200 rounded-xl cursor-pointer hover:bg-zinc-100/70 transition-colors">
+                  <div className="pr-3">
+                    <span className="text-xs font-bold text-zinc-900 flex items-center gap-1.5">
+                      <Shuffle className="w-3.5 h-3.5 text-zinc-600" />
+                      Shuffle Question Order
+                    </span>
+                    <span className="text-[11px] text-zinc-500 block mt-0.5">
+                      Randomizes the sequence of questions for every respondent.
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={quiz.settings.shuffleQuestions ?? false}
+                    onChange={(e) => updateSettingsField('shuffleQuestions', e.target.checked)}
+                    className="w-4 h-4 text-zinc-900 rounded border-zinc-300 focus:ring-zinc-900 shrink-0"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between p-4 bg-zinc-50 border border-zinc-200 rounded-xl cursor-pointer hover:bg-zinc-100/70 transition-colors">
+                  <div className="pr-3">
+                    <span className="text-xs font-bold text-zinc-900 flex items-center gap-1.5">
+                      <Shuffle className="w-3.5 h-3.5 text-zinc-600" />
+                      Shuffle Option Choices
+                    </span>
+                    <span className="text-[11px] text-zinc-500 block mt-0.5">
+                      Randomizes A/B/C/D answer choices inside each question.
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={quiz.settings.shuffleOptions ?? false}
+                    onChange={(e) => updateSettingsField('shuffleOptions', e.target.checked)}
+                    className="w-4 h-4 text-zinc-900 rounded border-zinc-300 focus:ring-zinc-900 shrink-0"
+                  />
+                </label>
+              </div>
+
+              {/* Anti-Cheating Tab-Switch Detection */}
+              <div className="p-4 bg-indigo-50/50 border border-indigo-200/80 rounded-xl space-y-3">
+                <label className="flex items-center justify-between cursor-pointer">
+                  <div className="pr-3">
+                    <span className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                      <ShieldAlert className="w-3.5 h-3.5 text-indigo-600" />
+                      Anti-Cheating: Detect Tab Switching & Window Focus Loss
+                    </span>
+                    <span className="text-[11px] text-indigo-800/80 block mt-0.5">
+                      Logs every time a respondent leaves the quiz tab and warns them immediately.
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={quiz.settings.antiCheatingTabSwitch ?? false}
+                    onChange={(e) => updateSettingsField('antiCheatingTabSwitch', e.target.checked)}
+                    className="w-4 h-4 text-indigo-600 rounded border-indigo-300 focus:ring-indigo-600 shrink-0"
+                  />
+                </label>
+
+                {quiz.settings.antiCheatingTabSwitch && (
+                  <div className="pt-3 border-t border-indigo-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <span className="text-xs font-semibold text-indigo-950 block">
+                        Strict Auto-Submit Limit on Tab Switches
+                      </span>
+                      <span className="text-[11px] text-indigo-700">
+                        Automatically locks and submits the quiz if the student exceeds the allowed tab switches.
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {[
+                        { label: 'Warn Only', value: null },
+                        { label: 'Max 2', value: 2 },
+                        { label: 'Max 3', value: 3 },
+                        { label: 'Max 5', value: 5 },
+                      ].map((opt) => (
+                        <button
+                          key={String(opt.value)}
+                          type="button"
+                          onClick={() => updateSettingsField('maxTabSwitches', opt.value)}
+                          className={`px-2.5 py-1 text-xs font-bold rounded-lg border transition-colors cursor-pointer ${
+                            (quiz.settings.maxTabSwitches ?? null) === opt.value
+                              ? 'bg-indigo-600 text-white border-indigo-600'
+                              : 'bg-white text-indigo-900 border-indigo-200 hover:bg-indigo-100'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -2102,13 +2503,42 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
 
                 <label className="flex items-center justify-between p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl cursor-pointer">
                   <div>
-                    <span className="text-xs font-semibold text-zinc-800 block">Show Score & Correct Answers Immediately</span>
-                    <span className="text-[11px] text-zinc-500">Upon submission, shows the score badge, confetti, and question explanations</span>
+                    <span className="text-xs font-semibold text-zinc-800 block">Show Score Immediately After Submission</span>
+                    <span className="text-[11px] text-zinc-500">Upon submission, shows the score badge, accuracy percentage, and pass/fail status</span>
                   </div>
                   <input
                     type="checkbox"
                     checked={quiz.settings.showScoreImmediately}
                     onChange={(e) => updateSettingsField('showScoreImmediately', e.target.checked)}
+                    className="w-4 h-4 text-zinc-900 rounded border-zinc-300 focus:ring-zinc-900"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl cursor-pointer">
+                  <div>
+                    <span className="text-xs font-semibold text-zinc-800 block">Allow Question-by-Question Review & Explanations</span>
+                    <span className="text-[11px] text-zinc-500">Lets respondents see which questions they got right/wrong and read your explanations</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={quiz.settings.allowReview ?? true}
+                    onChange={(e) => updateSettingsField('allowReview', e.target.checked)}
+                    className="w-4 h-4 text-zinc-900 rounded border-zinc-300 focus:ring-zinc-900"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl cursor-pointer">
+                  <div>
+                    <span className="text-xs font-semibold text-zinc-800 flex items-center gap-1.5">
+                      <Award className="w-3.5 h-3.5 text-emerald-600" />
+                      Enable Downloadable Completion Certificate
+                    </span>
+                    <span className="text-[11px] text-zinc-500 block">Lets respondents download a personalized PNG certificate upon finishing the quiz</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={quiz.settings.enableCertificate ?? true}
+                    onChange={(e) => updateSettingsField('enableCertificate', e.target.checked)}
                     className="w-4 h-4 text-zinc-900 rounded border-zinc-300 focus:ring-zinc-900"
                   />
                 </label>
@@ -2242,6 +2672,28 @@ export const QuizBuilder: React.FC<QuizBuilderProps> = ({
         onClose={() => setShowDeadlineModal(false)}
         quiz={quiz}
         onUpdateDeadline={(deadline) => updateSettingsField('deadline', deadline)}
+      />
+
+      {/* Bulk Import Questions Modal */}
+      <BulkImportModal
+        isOpen={showBulkImportModal}
+        onClose={() => setShowBulkImportModal(false)}
+        onImportQuestions={(imported) => {
+          setQuiz((prev) => ({
+            ...prev,
+            questions: [
+              ...prev.questions.filter((q) => q.title.trim() !== '' || prev.questions.length > 1),
+              ...imported,
+            ],
+          }));
+        }}
+      />
+
+      {/* Classroom QR Code Modal */}
+      <QRCodeModal
+        isOpen={showQRCodeModal}
+        onClose={() => setShowQRCodeModal(false)}
+        quiz={quiz}
       />
     </div>
   );

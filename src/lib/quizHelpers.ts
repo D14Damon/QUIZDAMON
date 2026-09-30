@@ -72,7 +72,26 @@ export function calculateQuizResults(quiz: Quiz, answers: Record<string, any>, i
         pointsEarned = maxPoints;
         correctCount++;
       }
-    } else if (q.type === 'rating-stars' || q.type === 'opinion-scale' || q.type === 'short-text' || q.type === 'long-text') {
+    } else if (q.type === 'short-text') {
+      const validAnswers = (q.acceptedAnswers || []).map((a) => a.trim().toLowerCase()).filter(Boolean);
+      if (validAnswers.length > 0) {
+        const userAns = String(val || '').trim().toLowerCase();
+        if (validAnswers.includes(userAns)) {
+          isCorrect = true;
+          pointsEarned = maxPoints;
+          correctCount++;
+        } else {
+          isCorrect = false;
+          pointsEarned = 0;
+          wrongCount++;
+        }
+      } else {
+        // Open-ended short-text without strict answer key gets participation points
+        pointsEarned = maxPoints;
+        isCorrect = true;
+        correctCount++;
+      }
+    } else if (q.type === 'rating-stars' || q.type === 'opinion-scale' || q.type === 'long-text') {
       // subjective / open questions with answer provided get points
       pointsEarned = maxPoints;
       isCorrect = true;
@@ -153,6 +172,7 @@ function buildSpreadsheetData(quiz: Quiz, responses: QuizResponse[]) {
     'Percentage (%)', 
     'Result', 
     'Time Spent (s)', 
+    'Tab Switches',
     'Submitted At'
   ];
 
@@ -184,6 +204,7 @@ function buildSpreadsheetData(quiz: Quiz, responses: QuizResponse[]) {
       `${r.percentage ?? 0}%`,
       r.isPassed ? 'Passed' : 'Failed',
       String(r.timeSpentSeconds ?? 0),
+      String(r.tabSwitchCount ?? 0),
       dateStr,
     ];
 
@@ -292,3 +313,143 @@ export function getCreatorDisplayName(quiz?: { creatorName?: string; creatorEmai
   }
   return 'Creator';
 }
+
+/**
+ * Generates and downloads a high-resolution PNG Completion Certificate on HTML5 Canvas
+ */
+export function downloadCompletionCertificate(params: {
+  respondentName: string;
+  respondentSection?: string;
+  quizTitle: string;
+  creatorName: string;
+  score: number;
+  maxScore: number;
+  percentage: number;
+  isPassed: boolean;
+  primaryColor?: string;
+}) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1600;
+  canvas.height = 1120;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  const accent = params.primaryColor || '#18181b';
+
+  // Background
+  ctx.fillStyle = '#fafafa';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Outer decorative frame
+  ctx.strokeStyle = '#e4e4e7';
+  ctx.lineWidth = 6;
+  ctx.strokeRect(48, 48, canvas.width - 96, canvas.height - 96);
+
+  // Inner accent border
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = 4;
+  ctx.strokeRect(68, 68, canvas.width - 136, canvas.height - 136);
+
+  // White card interior
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(72, 72, canvas.width - 144, canvas.height - 144);
+
+  // Top badge pill
+  ctx.fillStyle = accent;
+  ctx.beginPath();
+  ctx.roundRect(canvas.width / 2 - 170, 150, 340, 48, 24);
+  ctx.fill();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 20px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(params.isPassed ? 'CERTIFICATE OF ACHIEVEMENT' : 'CERTIFICATE OF COMPLETION', canvas.width / 2, 181);
+
+  // Main Heading
+  ctx.fillStyle = '#18181b';
+  ctx.font = 'bold 54px serif';
+  ctx.fillText('Quizzy Official Record', canvas.width / 2, 280);
+
+  ctx.fillStyle = '#71717a';
+  ctx.font = '24px sans-serif';
+  ctx.fillText('THIS PROUDLY CERTIFIES THAT', canvas.width / 2, 355);
+
+  // Respondent Name
+  const cleanName = (params.respondentName || 'Anonymous Respondent').trim();
+  ctx.fillStyle = '#09090b';
+  ctx.font = 'bold 64px sans-serif';
+  ctx.fillText(cleanName, canvas.width / 2, 450);
+
+  // Underline under name
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(canvas.width / 2 - 300, 478);
+  ctx.lineTo(canvas.width / 2 + 300, 478);
+  ctx.stroke();
+
+  if (params.respondentSection) {
+    ctx.fillStyle = '#52525b';
+    ctx.font = 'bold 24px sans-serif';
+    ctx.fillText(`Section / Class: ${params.respondentSection}`, canvas.width / 2, 525);
+  }
+
+  // Completed quiz text
+  ctx.fillStyle = '#71717a';
+  ctx.font = '24px sans-serif';
+  ctx.fillText('has successfully completed the assessment', canvas.width / 2, 595);
+
+  // Quiz Title
+  ctx.fillStyle = accent;
+  ctx.font = 'bold 42px sans-serif';
+  const titleText = params.quizTitle.length > 52 ? params.quizTitle.slice(0, 49) + '...' : params.quizTitle;
+  ctx.fillText(`"${titleText}"`, canvas.width / 2, 660);
+
+  // Score Box
+  ctx.fillStyle = '#f4f4f5';
+  ctx.beginPath();
+  ctx.roundRect(canvas.width / 2 - 280, 715, 560, 115, 20);
+  ctx.fill();
+
+  ctx.fillStyle = '#18181b';
+  ctx.font = 'bold 36px monospace';
+  ctx.fillText(
+    `Score: ${params.score} / ${params.maxScore} pts (${params.percentage}%)`,
+    canvas.width / 2,
+    785
+  );
+
+  // Footer Metadata (Instructor & Date)
+  const dateStr = new Date().toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  ctx.fillStyle = '#18181b';
+  ctx.font = 'bold 24px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(params.creatorName || 'Creator', 180, 945);
+  ctx.fillStyle = '#71717a';
+  ctx.font = '18px sans-serif';
+  ctx.fillText('Quiz Creator / Instructor', 180, 975);
+
+  ctx.fillStyle = '#18181b';
+  ctx.font = 'bold 24px sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText(dateStr, canvas.width - 180, 945);
+  ctx.fillStyle = '#71717a';
+  ctx.font = '18px sans-serif';
+  ctx.fillText('Date Issued', canvas.width - 180, 975);
+
+  // Download PNG
+  const dataUrl = canvas.toDataURL('image/png');
+  const link = document.createElement('a');
+  const safeName = cleanName.toLowerCase().replace(/[^a-z0-9]/g, '-');
+  link.download = `quizzy-certificate-${safeName || 'respondent'}.png`;
+  link.href = dataUrl;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+

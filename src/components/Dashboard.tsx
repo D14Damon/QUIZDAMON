@@ -16,11 +16,16 @@ import {
   Clock,
   ArrowRight,
   AlertTriangle,
-  Search
+  Search,
+  QrCode,
+  CopyPlus,
+  Lock,
+  Globe
 } from 'lucide-react';
 import { STARTER_TEMPLATES, getThemeAtmosphere } from '../data/presets';
 import { TemplateLiveAtmosphere } from './TemplateLiveAtmosphere';
 import { QuizLimitModal } from './QuizLimitModal';
+import { QRCodeModal } from './QRCodeModal';
 
 interface DashboardProps {
   quizzes: Quiz[];
@@ -30,6 +35,8 @@ interface DashboardProps {
   onTakeQuiz: (quizId: string) => void;
   onCreateNewQuiz: (templateIndex?: number) => void;
   onDeleteQuiz: (quizId: string) => void;
+  onDuplicateQuiz?: (quiz: Quiz) => void;
+  onToggleQuizStatus?: (quiz: Quiz) => void;
   onLoadSamples?: () => void;
 }
 
@@ -41,18 +48,37 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onTakeQuiz,
   onCreateNewQuiz,
   onDeleteQuiz,
+  onDuplicateQuiz,
+  onToggleQuizStatus,
   onLoadSamples,
 }) => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showTemplatesModal, setShowTemplatesModal] = useState(false);
   const [showLimitModal, setShowLimitModal] = useState(false);
+  const [qrModalQuiz, setQrModalQuiz] = useState<Quiz | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [templateCategory, setTemplateCategory] = useState<string>('All');
   const [templateQuery, setTemplateQuery] = useState<string>('');
+  const [quizSearchQuery, setQuizSearchQuery] = useState<string>('');
+  const [quizStatusFilter, setQuizStatusFilter] = useState<'all' | 'published' | 'draft'>('all');
 
   const totalResponses = quizzes.reduce((acc, q) => acc + (q.responseCount || 0), 0);
   const totalQuestions = quizzes.reduce((acc, q) => acc + (q.questions?.length || 0), 0);
   const isLimitReached = quizzes.length >= MAX_QUIZZES_PER_USER;
+
+  const filteredUserQuizzes = quizzes.filter((q) => {
+    const matchesStatus =
+      quizStatusFilter === 'all' ||
+      (quizStatusFilter === 'published' && q.status !== 'draft') ||
+      (quizStatusFilter === 'draft' && q.status === 'draft');
+    const qTerm = quizSearchQuery.toLowerCase().trim();
+    const matchesSearch =
+      !qTerm ||
+      q.title.toLowerCase().includes(qTerm) ||
+      (q.description || '').toLowerCase().includes(qTerm) ||
+      (q.customSlug || '').toLowerCase().includes(qTerm);
+    return matchesStatus && matchesSearch;
+  });
 
   // Filter templates by category and search query with original index retained
   const filteredTemplates = STARTER_TEMPLATES.map((tmpl, idx) => ({ ...tmpl, originalIndex: idx })).filter((tmpl) => {
@@ -202,12 +228,48 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
       {/* Quizzes List */}
       <div id="quizzes-section">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-zinc-900">Your Quizzes</h2>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-bold text-zinc-900">Your Quizzes</h2>
+            {quizzes.length > 0 && (
+              <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600">
+                {filteredUserQuizzes.length}
+              </span>
+            )}
+          </div>
+
           {quizzes.length > 0 && (
-            <span className="text-xs text-zinc-500">
-              Click "Copy Link" to send to your respondents
-            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Status filter pills */}
+              <div className="flex items-center bg-zinc-100 p-0.5 rounded-xl border border-zinc-200">
+                {(['all', 'published', 'draft'] as const).map((st) => (
+                  <button
+                    key={st}
+                    type="button"
+                    onClick={() => setQuizStatusFilter(st)}
+                    className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg capitalize transition-colors cursor-pointer ${
+                      quizStatusFilter === st
+                        ? 'bg-white text-zinc-900 shadow-2xs'
+                        : 'text-zinc-500 hover:text-zinc-800'
+                    }`}
+                  >
+                    {st === 'all' ? 'All' : st === 'published' ? 'Published' : 'Closed / Draft'}
+                  </button>
+                ))}
+              </div>
+
+              {/* Search box */}
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={quizSearchQuery}
+                  onChange={(e) => setQuizSearchQuery(e.target.value)}
+                  placeholder="Search quizzes..."
+                  className="pl-8 pr-3 py-1.5 text-xs bg-white border border-zinc-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-zinc-900 w-44 sm:w-52"
+                />
+              </div>
+            </div>
           )}
         </div>
 
@@ -233,11 +295,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </p>
             </div>
           </div>
+        ) : filteredUserQuizzes.length === 0 ? (
+          <div className="p-10 border border-dashed border-zinc-200 rounded-2xl bg-white text-center space-y-2">
+            <p className="text-sm font-semibold text-zinc-700">No matching quizzes found</p>
+            <p className="text-xs text-zinc-400">Try clearing your search or status filter.</p>
+          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {quizzes.map((quiz) => {
+            {filteredUserQuizzes.map((quiz) => {
               const shareUrl = getShareableQuizUrl(quiz);
               const isCopied = copiedId === quiz.id;
+              const isDraft = quiz.status === 'draft';
 
               return (
                 <div
@@ -248,6 +316,30 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   <div>
                     <div className="flex items-center justify-between gap-2 mb-3">
                       <div className="flex items-center gap-1.5 flex-wrap">
+                        {/* Published / Closed Status Toggle Badge */}
+                        <button
+                          type="button"
+                          onClick={() => onToggleQuizStatus?.(quiz)}
+                          title={isDraft ? 'Quiz is Closed (Draft). Click to publish.' : 'Quiz is Live. Click to pause/close.'}
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-md border transition-colors cursor-pointer ${
+                            isDraft
+                              ? 'bg-zinc-100 text-zinc-600 border-zinc-300 hover:bg-zinc-200'
+                              : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                          }`}
+                        >
+                          {isDraft ? (
+                            <>
+                              <Lock className="w-2.5 h-2.5" />
+                              <span>Closed</span>
+                            </>
+                          ) : (
+                            <>
+                              <Globe className="w-2.5 h-2.5" />
+                              <span>Live</span>
+                            </>
+                          )}
+                        </button>
+
                         {/* Layout badge */}
                         <span className="px-2 py-0.5 text-[11px] font-semibold bg-zinc-100 text-zinc-700 rounded-md capitalize">
                           {quiz.layout === 'step-by-step' ? 'Step-by-step' : quiz.layout === 'single-page' ? 'Single page' : 'Card deck'}
@@ -260,10 +352,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
                           />
                           {quiz.theme?.name || 'Custom Theme'}
                         </span>
-                        {/* Custom slug badge if present */}
-                        {quiz.customSlug && (
-                          <span className="px-2 py-0.5 text-[10px] font-mono bg-blue-50 text-blue-700 border border-blue-200 rounded-md truncate max-w-[120px]">
-                            {quiz.customSlug}
+                        {/* Access PIN badge if set */}
+                        {quiz.settings?.accessCode && (
+                          <span className="px-1.5 py-0.5 text-[10px] font-mono bg-amber-50 text-amber-800 border border-amber-200 rounded-md">
+                            PIN: {quiz.settings.accessCode}
                           </span>
                         )}
                       </div>
@@ -297,12 +389,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
                           {quiz.settings.timeLimitMinutes} mins
                         </span>
                       )}
+                      {quiz.settings?.antiCheatingTabSwitch && (
+                        <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">
+                          Proctored
+                        </span>
+                      )}
                     </div>
                   </div>
 
                   {/* Card Bottom: Share & Action Buttons */}
                   <div className="pt-4 mt-3 border-t border-zinc-100 space-y-2.5">
-                    {/* Shareable Link Box */}
+                    {/* Shareable Link Box + QR Code Button */}
                     <div className="flex items-center gap-1.5 p-1 bg-zinc-50 border border-zinc-200 rounded-xl">
                       <input
                         type="text"
@@ -311,6 +408,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         className="bg-transparent text-[11px] font-mono text-zinc-600 px-2.5 flex-1 truncate focus:outline-none select-all"
                         title="Direct system shareable link"
                       />
+                      <button
+                        type="button"
+                        onClick={() => setQrModalQuiz(quiz)}
+                        className="p-1.5 bg-white hover:bg-zinc-100 text-zinc-700 border border-zinc-200 rounded-lg transition-colors cursor-pointer shrink-0"
+                        title="Show Classroom QR Code"
+                      >
+                        <QrCode className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         onClick={(e) => copyQuizLink(quiz, e)}
                         className={`px-3 py-1.5 text-[11px] font-semibold rounded-lg flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
@@ -364,8 +469,20 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       </button>
                     </div>
 
-                    {/* Delete Confirm */}
-                    <div className="flex justify-end pt-1">
+                    {/* Duplicate & Delete Row */}
+                    <div className="flex items-center justify-between pt-1">
+                      {onDuplicateQuiz ? (
+                        <button
+                          type="button"
+                          onClick={() => onDuplicateQuiz(quiz)}
+                          className="text-[11px] text-zinc-500 hover:text-zinc-900 flex items-center gap-1 transition-colors cursor-pointer font-medium"
+                          title="Duplicate this quiz"
+                        >
+                          <CopyPlus className="w-3 h-3" />
+                          <span>Duplicate</span>
+                        </button>
+                      ) : <span />}
+
                       {deleteConfirmId === quiz.id ? (
                         <div className="flex items-center gap-1.5 text-xs">
                           <span className="text-zinc-500">Delete quiz?</span>
@@ -570,6 +687,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
           const el = document.getElementById('quizzes-section');
           if (el) el.scrollIntoView({ behavior: 'smooth' });
         }}
+      />
+
+      {/* Classroom QR Code Modal */}
+      <QRCodeModal
+        isOpen={!!qrModalQuiz}
+        onClose={() => setQrModalQuiz(null)}
+        quiz={qrModalQuiz}
       />
     </div>
   );

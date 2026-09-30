@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Quiz, Question } from '../../types';
-import { calculateQuizResults, getCreatorDisplayName } from '../../lib/quizHelpers';
+import { calculateQuizResults, getCreatorDisplayName, downloadCompletionCertificate } from '../../lib/quizHelpers';
 import { submitQuizResponse, checkEmailAlreadySubmitted } from '../../lib/quizDbService';
 import { getAnimationConfig } from '../../lib/animationVariants';
 import confetti from 'canvas-confetti';
@@ -23,9 +23,37 @@ import {
   Loader2,
   CalendarClock,
   CalendarX,
-  User
+  User,
+  ShieldAlert,
+  Download,
+  Maximize2,
+  X
 } from 'lucide-react';
 import { TemplateLiveAtmosphere } from '../TemplateLiveAtmosphere';
+
+function shuffleArray<T>(items: T[]): T[] {
+  const arr = [...items];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = arr[i];
+    arr[i] = arr[j];
+    arr[j] = tmp;
+  }
+  return arr;
+}
+
+function buildRandomizedQuestions(quiz: Quiz): Question[] {
+  const base = (quiz.questions || []).map((q) => {
+    if (quiz.settings?.shuffleOptions && q.options && q.options.length > 1 && q.type !== 'true-false') {
+      return {
+        ...q,
+        options: shuffleArray(q.options),
+      };
+    }
+    return q;
+  });
+  return quiz.settings?.shuffleQuestions ? shuffleArray(base) : base;
+}
 
 /**
  * Validates respondent email against quiz allowed list/domain rules.
@@ -105,8 +133,10 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
 }) => {
   // Step tracker (0 = Welcome/Identity, 1..N = questions in step-by-step, N+1 = submitted)
   const [currentStep, setCurrentStep] = useState(0);
+  const [activeQuestions, setActiveQuestions] = useState<Question[]>(() => buildRandomizedQuestions(quiz));
   const [respondentName, setRespondentName] = useState('');
   const [respondentEmail, setRespondentEmail] = useState('');
+  const [enteredAccessCode, setEnteredAccessCode] = useState('');
   const [respondentSection, setRespondentSection] = useState(
     quiz.settings.sectionType === 'dropdown' && quiz.settings.sectionOptions && quiz.settings.sectionOptions.length > 0
       ? quiz.settings.sectionOptions[0]
@@ -120,6 +150,18 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
   const [results, setResults] = useState<ReturnType<typeof calculateQuizResults> | null>(null);
   const [timeSpentSeconds, setTimeSpentSeconds] = useState(0);
   const [showAtmosphere] = useState(true);
+  const [zoomedImageUrl, setZoomedImageUrl] = useState<string | null>(null);
+
+  // Anti-Cheating Tab-Switch / Focus Loss Proctoring State
+  const [tabSwitchCount, setTabSwitchCount] = useState(0);
+  const [tabSwitchWarning, setTabSwitchWarning] = useState<string | null>(null);
+  const [autoSubmitReason, setAutoSubmitReason] = useState<string | undefined>(undefined);
+  const tabSwitchCountRef = useRef(0);
+  tabSwitchCountRef.current = tabSwitchCount;
+
+  useEffect(() => {
+    setActiveQuestions(buildRandomizedQuestions(quiz));
+  }, [quiz.id, quiz.questions, quiz.settings?.shuffleQuestions, quiz.settings?.shuffleOptions]);
 
   // Timer Configuration & State
   const timerMode = quiz.settings.timerMode || (quiz.settings.timeLimitMinutes ? 'whole-quiz' : 'none');
@@ -247,15 +289,62 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
 
   // Per-Question timer initialization on step change
   useEffect(() => {
-    if (timerMode === 'per-question' && currentStep > 0 && currentStep <= quiz.questions.length && !isSubmitted) {
-      const activeQ = quiz.questions[currentStep - 1];
+    if (timerMode === 'per-question' && currentStep > 0 && currentStep <= activeQuestions.length && !isSubmitted) {
+      const activeQ = activeQuestions[currentStep - 1];
       const qLimit = activeQ?.timeLimitSeconds || quiz.settings.questionTimeLimitSeconds || 30;
       setQuestionTimeRemaining(qLimit);
       setQuestionMaxTime(qLimit);
       setIsQuestionLocked(false);
       setTimedOutQuestionNotice(null);
     }
-  }, [currentStep, timerMode, isSubmitted, quiz.questions, quiz.settings.questionTimeLimitSeconds]);
+  }, [currentStep, timerMode, isSubmitted, activeQuestions, quiz.settings.questionTimeLimitSeconds]);
+
+  // Anti-Cheating Tab-Switch / Window Blur Listener
+  useEffect(() => {
+    if (!quiz.settings?.antiCheatingTabSwitch || isSubmitted || currentStep === 0) return;
+
+    let lastTriggered = 0;
+    const handleFocusLoss = () => {
+      const now = Date.now();
+      // Debounce rapid visibilitychange + blur firing simultaneously
+      if (now - lastTriggered < 800) return;
+      lastTriggered = now;
+
+      if (isSubmittedRef.current || isSubmittingRef.current || currentStepRef.current === 0) return;
+
+      const nextCount = tabSwitchCountRef.current + 1;
+      tabSwitchCountRef.current = nextCount;
+      setTabSwitchCount(nextCount);
+
+      const maxAllowed = quiz.settings?.maxTabSwitches;
+      if (maxAllowed && maxAllowed > 0 && nextCount >= maxAllowed) {
+        setTabSwitchWarning(
+          `Maximum allowed tab switches (${maxAllowed}) reached! Your quiz has been locked and auto-submitted.`
+        );
+        setAutoSubmitReason('tab-switch-limit');
+        handleSubmit(true, 'tab-switch-limit');
+      } else {
+        const limitNote =
+          maxAllowed && maxAllowed > 0
+            ? ` (${nextCount} of ${maxAllowed} allowed before auto-submit)`
+            : ` (${nextCount} recorded on your submission report)`;
+        setTabSwitchWarning(
+          `Proctoring Alert: Switching tabs or leaving the quiz window was detected${limitNote}.`
+        );
+      }
+    };
+
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        handleFocusLoss();
+      }
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [quiz.settings?.antiCheatingTabSwitch, quiz.settings?.maxTabSwitches, isSubmitted, currentStep]);
 
   // Main countdown timer effect
   useEffect(() => {
@@ -269,7 +358,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
         clearInterval(timerRef.current);
         setIsDeadlineExpired(true);
         setIsTimeUp(true);
-        handleSubmit(true);
+        handleSubmit(true, 'deadline');
         return;
       }
 
@@ -280,7 +369,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
           if (prev <= 1) {
             clearInterval(timerRef.current);
             setIsTimeUp(true);
-            handleSubmit(true);
+            handleSubmit(true, 'timer');
             return 0;
           }
           return prev - 1;
@@ -293,7 +382,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
           if (prev === null) return null;
           if (prev <= 1) {
             const activeStep = currentStepRef.current;
-            const totalQuestions = quiz.questions.length;
+            const totalQuestions = activeQuestions.length;
 
             if (activeStep < totalQuestions) {
               // Lock current question and advance
@@ -307,7 +396,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
               // Last question reached timeout -> finalize quiz
               clearInterval(timerRef.current);
               setIsTimeUp(true);
-              handleSubmit(true);
+              handleSubmit(true, 'timer');
             }
             return 0;
           }
@@ -317,7 +406,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
     }, 1000);
 
     return () => clearInterval(timerRef.current);
-  }, [isSubmitted, currentStep, timerMode]);
+  }, [isSubmitted, currentStep, timerMode, activeQuestions.length]);
 
   const formatCountdown = (secs: number) => {
     const mins = Math.floor(secs / 60);
@@ -332,14 +421,14 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       // Enter to go to next question
       if (e.key === 'Enter' && !e.shiftKey) {
-        const activeQ = quiz.questions[currentStep - 1];
+        const activeQ = activeQuestions[currentStep - 1];
         if (activeQ && activeQ.type !== 'long-text') {
           e.preventDefault();
           handleNextStep();
         }
       }
       // Keys 1..9 for multiple choice
-      const activeQ = quiz.questions[currentStep - 1];
+      const activeQ = activeQuestions[currentStep - 1];
       if (activeQ && (activeQ.type === 'multiple-choice' || activeQ.type === 'true-false') && activeQ.options) {
         const num = parseInt(e.key);
         if (!isNaN(num) && num >= 1 && num <= activeQ.options.length) {
@@ -351,7 +440,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentStep, quiz.layout, answers, isSubmitted]);
+  }, [currentStep, quiz.layout, answers, isSubmitted, activeQuestions]);
 
   const handleOptionSelect = (qId: string, value: any, isMultipleSelect: boolean) => {
     if (isTimeUp || isQuestionLocked || isSubmitting) return;
@@ -370,6 +459,11 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
 
   // Step transitions
   const handleStartQuiz = async () => {
+    if (quiz.status === 'draft' && !isPreviewMode) {
+      setValidationError('This quiz is currently closed by the instructor.');
+      return;
+    }
+
     // Deadline check: reject if expired
     if (isDeadlineValid && deadlineDate && deadlineDate.getTime() <= Date.now() && !isPreviewMode) {
       setValidationError('The deadline for this quiz has expired. Submissions are no longer accepted.');
@@ -381,6 +475,15 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
       setValidationError('You have already submitted this quiz. Only 1 submission is allowed per person.');
       return;
     }
+
+    // Access PIN / Passcode verification
+    if (quiz.settings.accessCode && quiz.settings.accessCode.trim() && !isPreviewMode) {
+      if (enteredAccessCode.trim().toLowerCase() !== quiz.settings.accessCode.trim().toLowerCase()) {
+        setValidationError('Invalid Access Passcode / PIN. Please enter the correct PIN provided by your instructor.');
+        return;
+      }
+    }
+
     if (quiz.settings.collectName && quiz.settings.requireName && !respondentName.trim()) {
       setValidationError('Please enter your name to begin.');
       return;
@@ -425,13 +528,14 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
     }
 
     setValidationError(null);
+    setActiveQuestions(buildRandomizedQuestions(quiz));
     setCurrentStep(1);
 
     if (timerMode === 'whole-quiz' && quiz.settings.timeLimitMinutes) {
       setTimeRemainingSeconds(quiz.settings.timeLimitMinutes * 60);
     }
-    if (timerMode === 'per-question' && quiz.questions.length > 0) {
-      const firstLimit = quiz.questions[0]?.timeLimitSeconds || quiz.settings.questionTimeLimitSeconds || 30;
+    if (timerMode === 'per-question' && activeQuestions.length > 0) {
+      const firstLimit = activeQuestions[0]?.timeLimitSeconds || quiz.settings.questionTimeLimitSeconds || 30;
       setQuestionTimeRemaining(firstLimit);
       setQuestionMaxTime(firstLimit);
       setIsQuestionLocked(false);
@@ -440,7 +544,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
 
   const handleNextStep = () => {
     if (isTimeUp) return;
-    const activeQ = quiz.questions[currentStep - 1];
+    const activeQ = activeQuestions[currentStep - 1];
     if (activeQ && activeQ.required) {
       const ans = answers[activeQ.id];
       if (ans === undefined || ans === null || ans === '' || (Array.isArray(ans) && ans.length === 0)) {
@@ -450,7 +554,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
     }
     setValidationError(null);
 
-    if (currentStep < quiz.questions.length) {
+    if (currentStep < activeQuestions.length) {
       setCurrentStep(currentStep + 1);
     } else {
       // Final submission
@@ -467,15 +571,21 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
   };
 
   const handleForceSubmit = () => {
-    handleSubmit(true);
+    handleSubmit(true, 'timer');
   };
 
-  // Submission handler (supports normal manual submit or timeout auto-submit)
-  const handleSubmit = async (isTimeoutSubmit = false) => {
+  // Submission handler (supports normal manual submit or timeout / proctoring auto-submit)
+  const handleSubmit = async (isTimeoutSubmit = false, reason?: string) => {
     if (isSubmittedRef.current || isSubmittingRef.current) return;
 
     // Validate required questions only if this is a manual submission
     if (!isTimeoutSubmit && effectiveLayout === 'single-page') {
+      if (quiz.settings.accessCode && quiz.settings.accessCode.trim() && !isPreviewMode) {
+        if (enteredAccessCode.trim().toLowerCase() !== quiz.settings.accessCode.trim().toLowerCase()) {
+          setValidationError('Invalid Access Passcode / PIN. Please enter the correct PIN.');
+          return;
+        }
+      }
       if (quiz.settings.collectName && quiz.settings.requireName && !respondentName.trim()) {
         setValidationError('Please provide your name.');
         return;
@@ -495,8 +605,8 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
           return;
         }
       }
-      for (let i = 0; i < quiz.questions.length; i++) {
-        const q = quiz.questions[i];
+      for (let i = 0; i < activeQuestions.length; i++) {
+        const q = activeQuestions[i];
         if (q.required) {
           const val = answersRef.current[q.id];
           if (val === undefined || val === null || val === '' || (Array.isArray(val) && val.length === 0)) {
@@ -509,6 +619,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
 
     if (isTimeoutSubmit) {
       setIsTimeUp(true);
+      if (reason) setAutoSubmitReason(reason);
     }
 
     setIsSubmitting(true);
@@ -534,6 +645,8 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
           isPassed: calculated.isPassed,
           timeSpentSeconds,
           timedOut: isTimeoutSubmit,
+          tabSwitchCount: tabSwitchCountRef.current,
+          autoSubmittedReason: reason || (isTimeoutSubmit ? 'timer' : undefined),
           unansweredCount: calculated.unansweredCount,
           correctCount: calculated.correctCount,
           wrongCount: calculated.wrongCount,
@@ -579,11 +692,16 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
 
   const restartQuiz = () => {
     setAnswers({});
+    setActiveQuestions(buildRandomizedQuestions(quiz));
     setCurrentStep(0);
     setIsSubmitted(false);
     setIsTimeUp(false);
     setIsQuestionLocked(false);
     setTimedOutQuestionNotice(null);
+    setTabSwitchCount(0);
+    tabSwitchCountRef.current = 0;
+    setTabSwitchWarning(null);
+    setAutoSubmitReason(undefined);
     setResults(null);
     setTimeSpentSeconds(0);
     setTimeRemainingSeconds(
@@ -895,6 +1013,24 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
           </div>
         )}
 
+        {/* Anti-Cheating Proctoring Pill */}
+        {quiz.settings.antiCheatingTabSwitch && !isSubmitted && currentStep > 0 && (
+          <div
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold shadow-xs border ${
+              tabSwitchCount > 0
+                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                : 'bg-indigo-50 text-indigo-800 border-indigo-200'
+            }`}
+          >
+            <ShieldAlert className="w-3.5 h-3.5" />
+            <span>
+              {tabSwitchCount > 0
+                ? `Tab Switches: ${tabSwitchCount}${quiz.settings.maxTabSwitches ? ` / ${quiz.settings.maxTabSwitches}` : ''}`
+                : 'Proctored Mode'}
+            </span>
+          </div>
+        )}
+
         {/* Deadline Indicator */}
         {isDeadlineValid && !isSubmitted && (
           <div 
@@ -949,15 +1085,27 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                 </div>
               </div>
 
-              {/* Time Expired Notice */}
+              {/* Time Expired or Tab Switch Auto-Submit Notice */}
               {results.isTimedOut && (
                 <div className="p-4 bg-amber-50 border border-amber-300 rounded-2xl text-left space-y-1.5 animate-in fade-in">
                   <div className="flex items-center gap-2 text-amber-900 font-bold text-sm">
-                    <Clock className="w-4 h-4 text-amber-700 shrink-0" />
-                    <span>Time Expired — Quiz Auto-Submitted</span>
+                    {autoSubmitReason === 'tab-switch-limit' ? (
+                      <>
+                        <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
+                        <span>Proctoring Limit Reached — Quiz Auto-Submitted</span>
+                      </>
+                    ) : (
+                      <>
+                        <Clock className="w-4 h-4 text-amber-700 shrink-0" />
+                        <span>Time Expired — Quiz Auto-Submitted</span>
+                      </>
+                    )}
                   </div>
                   <p className="text-xs text-amber-800 leading-relaxed">
-                    Your time limit ended. The system recorded your correct score of{' '}
+                    {autoSubmitReason === 'tab-switch-limit'
+                      ? `You exceeded the maximum allowed tab switches (${quiz.settings.maxTabSwitches}). `
+                      : 'Your time limit ended. '}
+                    The system recorded your score of{' '}
                     <strong className="text-amber-950 font-bold">{results.totalScore} / {results.maxScore} pts</strong> based on the questions you answered.
                     {results.unansweredCount !== undefined && results.unansweredCount > 0 && (
                       <span>
@@ -1004,39 +1152,71 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                 </div>
               )}
 
-              {/* Answers Review without revealing correct answers */}
-              {quiz.settings.showScoreImmediately && results.evaluatedAnswers && (
+              {/* Answers Review & Explanations */}
+              {quiz.settings.showScoreImmediately && (quiz.settings.allowReview ?? true) && results.evaluatedAnswers && (
                 <div className="text-left space-y-4 pt-4 border-t" style={{ borderColor: quiz.theme.borderColor }}>
                   <h3 className="text-xs font-bold uppercase tracking-wider opacity-70">
                     Review Your Answers
                   </h3>
                   <div className="space-y-3 max-h-72 overflow-y-auto pr-2">
-                    {results.evaluatedAnswers.map((ea, idx) => (
-                      <div 
-                        key={ea.questionId}
-                        className="p-3.5 rounded-xl border text-xs space-y-1"
-                        style={{ borderColor: quiz.theme.borderColor }}
-                      >
-                        <div className="flex items-center justify-between font-semibold gap-3">
-                          <span className="leading-snug">Q{idx + 1}: {ea.questionTitle}</span>
-                          {ea.isTimedOut ? (
-                            <span className="text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md font-bold text-[11px] shrink-0">
-                              ✕ Timed Out (0 pts)
-                            </span>
-                          ) : ea.isCorrect !== undefined ? (
-                            <span className={`px-2 py-0.5 rounded-md font-bold text-[11px] shrink-0 ${ea.isCorrect ? 'text-emerald-700 bg-emerald-50 border border-emerald-200' : 'text-rose-700 bg-rose-50 border border-rose-200'}`}>
-                              {ea.isCorrect ? `✓ Correct (+${ea.pointsEarned} pts)` : '✕ Incorrect (0 pts)'}
-                            </span>
-                          ) : null}
+                    {results.evaluatedAnswers.map((ea, idx) => {
+                      const qObj = quiz.questions.find((q) => q.id === ea.questionId);
+                      return (
+                        <div 
+                          key={ea.questionId}
+                          className="p-3.5 rounded-xl border text-xs space-y-1.5"
+                          style={{ borderColor: quiz.theme.borderColor }}
+                        >
+                          <div className="flex items-center justify-between font-semibold gap-3">
+                            <span className="leading-snug">Q{idx + 1}: {ea.questionTitle}</span>
+                            {ea.isTimedOut ? (
+                              <span className="text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md font-bold text-[11px] shrink-0">
+                                ✕ Timed Out (0 pts)
+                              </span>
+                            ) : ea.isCorrect !== undefined ? (
+                              <span className={`px-2 py-0.5 rounded-md font-bold text-[11px] shrink-0 ${ea.isCorrect ? 'text-emerald-700 bg-emerald-50 border border-emerald-200' : 'text-rose-700 bg-rose-50 border border-rose-200'}`}>
+                                {ea.isCorrect ? `✓ Correct (+${ea.pointsEarned} pts)` : '✕ Incorrect (0 pts)'}
+                              </span>
+                            ) : null}
+                          </div>
+                          {qObj?.explanation && (
+                            <p className="text-[11px] opacity-75 pt-1 border-t border-black/5">
+                              <strong>Explanation:</strong> {qObj.explanation}
+                            </p>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
 
               {/* Actions */}
               <div className="flex flex-wrap items-center justify-center gap-3 pt-4">
+                {(quiz.settings.enableCertificate ?? true) && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      downloadCompletionCertificate({
+                        respondentName: respondentName || 'Respondent',
+                        respondentSection: respondentSection || undefined,
+                        quizTitle: quiz.title,
+                        creatorName: creatorDisplayName,
+                        score: results.totalScore,
+                        maxScore: results.maxScore,
+                        percentage: results.percentage,
+                        isPassed: results.isPassed,
+                        primaryColor: quiz.theme.primaryColor,
+                      })
+                    }
+                    className="px-4 py-2 text-xs font-bold rounded-xl text-white shadow-xs transition-transform hover:scale-[1.02] cursor-pointer flex items-center gap-1.5"
+                    style={{ backgroundColor: quiz.theme.primaryColor, color: quiz.theme.primaryTextColor }}
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download Certificate (.PNG)</span>
+                  </button>
+                )}
+
                 {quiz.settings.limitOneSubmission !== false && !isPreviewMode ? (
                   <span className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl bg-zinc-100 text-zinc-600 border border-zinc-200">
                     <Lock className="w-3.5 h-3.5 text-zinc-500" />
@@ -1135,8 +1315,24 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                 )}
               </div>
 
-              {/* Deadline Expired State */}
-              {isDeadlineExpired && !isPreviewMode ? (
+              {/* Closed / Draft State or Deadline Expired State */}
+              {quiz.status === 'draft' && !isPreviewMode ? (
+                <div className="space-y-4 pt-4 border-t text-left" style={{ borderColor: quiz.theme.borderColor }}>
+                  <div className="p-4 sm:p-5 bg-zinc-100 border border-zinc-300 rounded-2xl flex items-start gap-3.5">
+                    <div className="p-2.5 bg-zinc-800 text-white rounded-xl shrink-0 mt-0.5 shadow-2xs">
+                      <Lock className="w-5 h-5" />
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className="text-sm sm:text-base font-bold text-zinc-900">
+                        Quiz Currently Closed
+                      </h3>
+                      <p className="text-xs text-zinc-600 leading-relaxed">
+                        The instructor has temporarily paused or closed responses for this quiz. Please check back when your instructor opens it.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : isDeadlineExpired && !isPreviewMode ? (
                 <div className="space-y-5 pt-4 border-t text-left" style={{ borderColor: quiz.theme.borderColor }}>
                   <div className="p-4 sm:p-5 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3.5">
                     <div className="p-2.5 bg-rose-600 text-white rounded-xl shrink-0 mt-0.5 shadow-2xs">
@@ -1279,6 +1475,27 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                         )}
                       </div>
 
+                      {/* Access Passcode / PIN (if configured by creator) */}
+                      {quiz.settings.accessCode && quiz.settings.accessCode.trim() && (
+                        <div>
+                          <label className="block text-xs font-semibold opacity-80 mb-1 flex items-center gap-1.5">
+                            <Lock className="w-3.5 h-3.5 text-amber-500" />
+                            <span>Quiz Access Passcode / PIN <span className="text-rose-500">*</span></span>
+                          </label>
+                          <input
+                            type="text"
+                            value={enteredAccessCode}
+                            onChange={(e) => setEnteredAccessCode(e.target.value)}
+                            placeholder="Enter PIN provided by instructor..."
+                            className={`w-full p-3.5 ${roundedClass} border text-base sm:text-sm font-mono font-bold tracking-wider transition-all focus:outline-none focus:ring-2 touch-manipulation ${
+                              quiz.theme.isDark 
+                                ? 'bg-zinc-900/90 text-white border-zinc-700 placeholder:text-zinc-500 focus:ring-zinc-400' 
+                                : 'bg-white text-zinc-900 border-zinc-300 placeholder:text-zinc-400 focus:ring-zinc-900'
+                            }`}
+                          />
+                        </div>
+                      )}
+
                       {/* Full Name */}
                       {quiz.settings.collectName && (
                         <div>
@@ -1414,17 +1631,34 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
           ) : effectiveLayout === 'step-by-step' || effectiveLayout === 'card-deck' ? (
             /* ================= 3. STEP-BY-STEP / CARD DECK ================= */
             <div className="space-y-6">
+              {/* Proctoring Warning Banner */}
+              {tabSwitchWarning && (
+                <div className="p-3.5 bg-rose-50 border border-rose-300 text-rose-900 rounded-2xl text-xs font-bold flex items-center justify-between gap-2 shadow-sm animate-in fade-in">
+                  <div className="flex items-center gap-2">
+                    <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>{tabSwitchWarning}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setTabSwitchWarning(null)}
+                    className="text-rose-600 hover:text-rose-900 p-1 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
               {/* Progress Bar */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between text-xs font-semibold opacity-70">
-                  <span>Question {currentStep} of {quiz.questions.length}</span>
-                  <span className="font-mono">{Math.round((currentStep / quiz.questions.length) * 100)}%</span>
+                  <span>Question {currentStep} of {activeQuestions.length}</span>
+                  <span className="font-mono">{Math.round((currentStep / activeQuestions.length) * 100)}%</span>
                 </div>
                 <div className="w-full h-2 rounded-full overflow-hidden bg-black/10">
                   <div
                     className="h-full transition-all duration-300 rounded-full"
                     style={{
-                      width: `${(currentStep / quiz.questions.length) * 100}%`,
+                      width: `${(currentStep / activeQuestions.length) * 100}%`,
                       backgroundColor: quiz.theme.primaryColor,
                     }}
                   />
@@ -1433,7 +1667,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
 
               {/* Active Question Card with Custom Preset Animation */}
               {(() => {
-                const activeQ = quiz.questions[currentStep - 1];
+                const activeQ = activeQuestions[currentStep - 1];
                 if (!activeQ) return null;
 
                 return (
@@ -1512,7 +1746,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                       </div>
                     )}
 
-                    <div className="space-y-1">
+                    <div className="space-y-2">
                       <div className="flex items-center gap-2">
                         <span 
                           className="px-2 py-0.5 text-[11px] font-bold rounded-md"
@@ -1535,6 +1769,24 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                       </h2>
                       {activeQ.description && (
                         <p className="text-xs opacity-70 leading-relaxed">{activeQ.description}</p>
+                      )}
+                      {activeQ.imageUrl && (
+                        <div className="pt-2">
+                          <div
+                            onClick={() => setZoomedImageUrl(activeQ.imageUrl || null)}
+                            className="relative inline-block rounded-2xl overflow-hidden border cursor-zoom-in group"
+                            style={{ borderColor: quiz.theme.borderColor }}
+                          >
+                            <img
+                              src={activeQ.imageUrl}
+                              alt={activeQ.title}
+                              className="max-h-64 w-auto object-contain rounded-xl"
+                            />
+                            <span className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] font-semibold px-2 py-1 rounded-lg flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Maximize2 className="w-3 h-3" /> Expand
+                            </span>
+                          </div>
+                        </div>
                       )}
                     </div>
 
@@ -1571,7 +1823,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                           color: quiz.theme.primaryTextColor,
                         }}
                       >
-                        {currentStep === quiz.questions.length ? (
+                        {currentStep === activeQuestions.length ? (
                           isSubmitting ? 'Submitting...' : 'Submit Quiz'
                         ) : (
                           <>
@@ -1605,7 +1857,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                         color: quiz.theme.primaryColor,
                       }}
                     >
-                      {quiz.questions.length} {quiz.questions.length === 1 ? 'Question' : 'Questions'}
+                      {activeQuestions.length} {activeQuestions.length === 1 ? 'Question' : 'Questions'}
                     </span>
 
                     <span 
@@ -1650,7 +1902,19 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                   </div>
                 )}
 
-                {isDeadlineExpired && !isPreviewMode ? (
+                {quiz.status === 'draft' && !isPreviewMode ? (
+                  <div className="p-4 bg-zinc-100 border border-zinc-300 rounded-2xl flex items-start gap-3 mt-4">
+                    <div className="p-2 bg-zinc-800 text-white rounded-xl shrink-0 mt-0.5">
+                      <Lock className="w-4 h-4" />
+                    </div>
+                    <div className="space-y-1 text-xs">
+                      <h4 className="font-bold text-zinc-900">Quiz Currently Closed</h4>
+                      <p className="text-zinc-600 leading-relaxed">
+                        The instructor has temporarily closed submissions for this quiz.
+                      </p>
+                    </div>
+                  </div>
+                ) : isDeadlineExpired && !isPreviewMode ? (
                   <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3 mt-4">
                     <div className="p-2 bg-rose-600 text-white rounded-xl shrink-0 mt-0.5">
                       <CalendarX className="w-4 h-4" />
@@ -1678,8 +1942,24 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                       </p>
                     </div>
                   </div>
-                ) : (quiz.settings.collectName || (quiz.settings.collectSection ?? true) || quiz.settings.collectEmail) && (
+                ) : (quiz.settings.collectName || (quiz.settings.collectSection ?? true) || quiz.settings.collectEmail || (quiz.settings.accessCode && quiz.settings.accessCode.trim())) && (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t" style={{ borderColor: quiz.theme.borderColor }}>
+                    {quiz.settings.accessCode && quiz.settings.accessCode.trim() && (
+                      <div>
+                        <label className="block text-xs font-semibold opacity-80 mb-1">
+                          Access PIN <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={enteredAccessCode}
+                          onChange={(e) => setEnteredAccessCode(e.target.value)}
+                          placeholder="Enter PIN..."
+                          className={`w-full p-2.5 ${roundedClass} border text-base sm:text-xs font-mono font-bold focus:outline-none touch-manipulation ${
+                            quiz.theme.isDark ? 'bg-zinc-900 text-white border-zinc-700' : 'bg-white text-zinc-900 border-zinc-300'
+                          }`}
+                        />
+                      </div>
+                    )}
                     {quiz.settings.collectName && (
                       <div>
                         <label className="block text-xs font-semibold opacity-80 mb-1">
@@ -1748,9 +2028,9 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
               </div>
 
               {/* All Questions in a continuous elegant stream */}
-              {!(existingSubmission && quiz.settings.limitOneSubmission !== false && !isPreviewMode) && !(isDeadlineExpired && !isPreviewMode) && (
+              {!(quiz.status === 'draft' && !isPreviewMode) && !(existingSubmission && quiz.settings.limitOneSubmission !== false && !isPreviewMode) && !(isDeadlineExpired && !isPreviewMode) && (
                 <>
-                  {quiz.questions.map((question, qIdx) => (
+                  {activeQuestions.map((question, qIdx) => (
                     <div
                       key={question.id}
                       className={`p-6 sm:p-8 ${roundedClass} border shadow-xs space-y-4`}
@@ -1759,7 +2039,7 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                         borderColor: quiz.theme.borderColor,
                       }}
                     >
-                      <div className="space-y-1">
+                      <div className="space-y-2">
                         <div className="flex items-center gap-2">
                           <span 
                             className="px-2 py-0.5 text-[11px] font-bold rounded"
@@ -1782,6 +2062,24 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
                         </h3>
                         {question.description && (
                           <p className="text-xs opacity-70">{question.description}</p>
+                        )}
+                        {question.imageUrl && (
+                          <div className="pt-1">
+                            <div
+                              onClick={() => setZoomedImageUrl(question.imageUrl || null)}
+                              className="relative inline-block rounded-2xl overflow-hidden border cursor-zoom-in group"
+                              style={{ borderColor: quiz.theme.borderColor }}
+                            >
+                              <img
+                                src={question.imageUrl}
+                                alt={question.title}
+                                className="max-h-60 w-auto object-contain rounded-xl"
+                              />
+                              <span className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] font-semibold px-2 py-1 rounded-lg flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Maximize2 className="w-3 h-3" /> Expand
+                              </span>
+                            </div>
+                          </div>
                         )}
                       </div>
 
@@ -1819,6 +2117,29 @@ export const QuizTaker: React.FC<QuizTakerProps> = ({
 
         </div>
       </main>
+
+      {/* Lightbox Modal for Zoomed Question Image */}
+      {zoomedImageUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in cursor-zoom-out"
+          onClick={() => setZoomedImageUrl(null)}
+        >
+          <div className="relative max-w-4xl max-h-[90dvh] flex items-center justify-center">
+            <img
+              src={zoomedImageUrl}
+              alt="Question zoom"
+              className="max-w-full max-h-[85dvh] object-contain rounded-2xl shadow-2xl border border-white/20"
+            />
+            <button
+              type="button"
+              onClick={() => setZoomedImageUrl(null)}
+              className="absolute -top-3 -right-3 w-9 h-9 rounded-full bg-white text-zinc-900 shadow-lg flex items-center justify-center cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

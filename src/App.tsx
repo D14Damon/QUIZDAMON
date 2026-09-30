@@ -6,7 +6,9 @@ import {
   getQuizzesByUser, 
   getQuizById, 
   seedStarterQuizzes, 
-  deleteQuiz 
+  deleteQuiz,
+  duplicateQuiz,
+  saveQuiz
 } from './lib/quizDbService';
 import { getUserProfile } from './lib/userService';
 import { STARTER_TEMPLATES, THEME_PRESETS } from './data/presets';
@@ -231,6 +233,42 @@ export default function App() {
     }
   };
 
+  // Duplicate quiz
+  const handleDuplicateQuiz = async (quiz: Quiz) => {
+    if (!user) return;
+    if (quizzes.length >= MAX_QUIZZES_PER_USER) {
+      setShowLimitModal(true);
+      return;
+    }
+    try {
+      const copy = await duplicateQuiz(quiz, user.uid);
+      setQuizzes((prev) => [copy, ...prev]);
+    } catch (err: any) {
+      if (err?.message?.includes('limit')) {
+        setShowLimitModal(true);
+      }
+      console.error('Duplicate error:', err);
+    }
+  };
+
+  // Toggle published / draft status
+  const handleToggleQuizStatus = async (quiz: Quiz) => {
+    if (!user) return;
+    const nextStatus: 'published' | 'draft' = quiz.status === 'draft' ? 'published' : 'draft';
+    try {
+      await saveQuiz({
+        id: quiz.id,
+        creatorId: user.uid,
+        status: nextStatus,
+      });
+      setQuizzes((prev) =>
+        prev.map((q) => (q.id === quiz.id ? { ...q, status: nextStatus } : q))
+      );
+    } catch (err) {
+      console.error('Toggle status error:', err);
+    }
+  };
+
   // Test / take quiz
   const handleTakeQuiz = (quizId: string) => {
     const target = quizzes.find((q) => q.id === quizId || q.customSlug === quizId) || activeQuiz;
@@ -348,6 +386,8 @@ export default function App() {
             onTakeQuiz={handleTakeQuiz}
             onCreateNewQuiz={handleCreateNewQuiz}
             onDeleteQuiz={handleDeleteQuiz}
+            onDuplicateQuiz={handleDuplicateQuiz}
+            onToggleQuizStatus={handleToggleQuizStatus}
             onLoadSamples={handleLoadSamples}
           />
         ) : currentView === 'builder' && activeQuiz ? (

@@ -184,6 +184,118 @@ export async function deleteQuiz(quizId: string): Promise<void> {
   }
 }
 
+// Duplicate an existing quiz (enforces MAX_QUIZZES_PER_USER)
+export async function duplicateQuiz(quiz: Quiz, userId: string): Promise<Quiz> {
+  try {
+    const existingQuizzes = await getQuizzesByUser(userId);
+    if (existingQuizzes.length >= MAX_QUIZZES_PER_USER) {
+      throw new Error(`Quiz creation limit reached: you already have ${existingQuizzes.length} of ${MAX_QUIZZES_PER_USER} quizzes.`);
+    }
+
+    const colRef = collection(db, 'quizzes');
+    const docRef = doc(colRef);
+    const copyTitle = `${quiz.title} (Copy)`;
+    const duplicatedQuiz: Quiz = {
+      ...quiz,
+      id: docRef.id,
+      title: copyTitle,
+      customSlug: generateDefaultQuizSlug(copyTitle + '-' + docRef.id.slice(0, 4)),
+      creatorId: userId,
+      responseCount: 0,
+      questions: (quiz.questions || []).map((q) => ({
+        ...q,
+        id: 'q_' + Math.random().toString(36).substring(2, 9),
+        options: q.options?.map((o) => ({
+          ...o,
+          id: 'opt_' + Math.random().toString(36).substring(2, 8),
+        })),
+      })),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    await setDoc(docRef, cleanForFirestore({
+      ...duplicatedQuiz,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    }));
+
+    return duplicatedQuiz;
+  } catch (error) {
+    console.error('Error duplicating quiz:', error);
+    throw error;
+  }
+}
+
+// Delete a single respondent submission and unlock their email so they can retake if needed
+export async function deleteQuizResponse(
+  quizId: string,
+  responseId: string,
+  respondentEmail?: string
+): Promise<void> {
+  try {
+    // 1. Delete from top-level 'responses' collection
+    try {
+      await deleteDoc(doc(db, 'responses', responseId));
+    } catch (e) {
+      console.warn('Could not delete from top-level responses:', e);
+    }
+
+    // 2. Also attempt delete from subcollection if present
+    try {
+      await deleteDoc(doc(db, 'quizzes', quizId, 'responses', responseId));
+    } catch (e) {}
+
+    // 3. Remove email submission lock so student can retake the quiz
+    if (respondentEmail && respondentEmail.trim()) {
+      try {
+        const key = `${quizId}_${respondentEmail.trim().toLowerCase().replace(/[^a-z0-9@._-]/g, '_')}`;
+        await deleteDoc(doc(db, 'quiz_submissions', key));
+      } catch (e) {
+        console.warn('Could not delete quiz_submissions lock:', e);
+      }
+    }
+
+    // 4. Decrement responseCount on quiz
+    try {
+      const quizRef = doc(db, 'quizzes', quizId);
+      const quizSnap = await getDoc(quizRef);
+      if (quizSnap.exists()) {
+        const currentCount = quizSnap.data().responseCount || 0;
+        await updateDoc(quizRef, {
+          responseCount: Math.max(0, currentCount - 1),
+          updatedAt: serverTimestamp(),
+        });
+      }
+    } catch (e) {
+      console.warn('Could not decrement responseCount:', e);
+    }
+  } catch (error) {
+    console.error('Error deleting quiz response:', error);
+    throw error;
+  }
+}
+
+// Update a quiz response (used for manual grading / score override by instructor)
+export async function updateQuizResponseGrading(
+  quizId: string,
+  responseId: string,
+  updates: Partial<QuizResponse>
+): Promise<void> {
+  try {
+    const cleanUpdates = cleanForFirestore(updates);
+    try {
+      await updateDoc(doc(db, 'responses', responseId), cleanUpdates);
+    } catch (e) {
+      // Fallback to subcollection if stored there
+      await updateDoc(doc(db, 'quizzes', quizId, 'responses', responseId), cleanUpdates);
+    }
+  } catch (error) {
+    console.error('Error updating quiz response grading:', error);
+    throw error;
+  }
+}
+
 // Check if a specific email has already submitted this quiz
 export async function checkEmailAlreadySubmitted(quizId: string, email: string): Promise<boolean> {
   if (!email || !email.trim()) return false;

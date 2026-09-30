@@ -61,7 +61,9 @@ export interface Question {
   type: QuestionType;
   title: string;
   description?: string;
+  imageUrl?: string; // Optional image attachment (base64 or URL)
   options?: QuestionOption[];
+  acceptedAnswers?: string[]; // Optional auto-graded correct answers for short-text questions
   required: boolean;
   points: number;
   explanation?: string;
@@ -85,13 +87,18 @@ export interface QuizSettings {
   limitOneSubmission?: boolean; // Limit each user 1 submit each
   restrictToAllowedEmails?: boolean;
   allowedEmails?: string[]; // Specific emails authorized to take this quiz
+  accessCode?: string; // Optional passcode / PIN required to start the quiz
   timerMode?: TimerMode; // 'none' | 'whole-quiz' | 'per-question'
   timeLimitMinutes: number | null; // whole quiz time limit in minutes (null = no limit)
   questionTimeLimitSeconds?: number | null; // default per-question time limit in seconds (e.g. 30s)
   deadline?: string | null; // ISO string deadline timestamp (e.g. '2026-09-05T17:00') or null if no deadline
   shuffleQuestions: boolean;
+  shuffleOptions?: boolean; // Randomize multiple-choice / multiple-select option order per respondent
+  antiCheatingTabSwitch?: boolean; // Detect when respondent switches tabs or minimizes browser
+  maxTabSwitches?: number | null; // Auto-submit if respondent exceeds max tab switches (null/0 = warning & log only)
   showScoreImmediately: boolean;
   allowReview: boolean;
+  enableCertificate?: boolean; // Allow respondents to download a completion certificate
   passPercentage: number;
   successTitle: string;
   successMessage: string;
@@ -153,6 +160,8 @@ export interface QuizResponse {
   isPassed: boolean;
   timeSpentSeconds: number;
   timedOut?: boolean; // True if submission was triggered by timer expiration
+  tabSwitchCount?: number; // Number of times respondent switched tabs / lost focus
+  autoSubmittedReason?: string; // e.g. 'timer' | 'tab-switch-limit' | 'deadline'
   unansweredCount?: number; // Number of questions left uncompleted
   correctCount?: number;
   wrongCount?: number;
